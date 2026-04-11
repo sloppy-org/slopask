@@ -49,9 +49,6 @@ header .brand { font-size: 0.75rem; color: #999; white-space: nowrap; margin-lef
 }
 @media (hover: hover) { #btn-submit:hover { background: #000; color: #fff; } }
 
-.cc0-notice { font-size: 0.65rem; color: #bbb; margin-top: 0.25rem; }
-.cc0-notice a { color: #999; }
-
 /* recorder */
 #recorder { display: none; margin-top: 0.35rem; border: 1px solid #ccc; padding: 0.5rem; }
 #recorder.active { display: block; }
