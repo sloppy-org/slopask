@@ -560,6 +560,14 @@ func (s *Server) handleMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fullPath := filepath.Join(s.uploadsDir, clean)
+	// Ensure correct Content-Type for media formats Go doesn't detect well.
+	ext := strings.ToLower(filepath.Ext(clean))
+	switch ext {
+	case ".webm":
+		w.Header().Set("Content-Type", "video/webm")
+	case ".ogg":
+		w.Header().Set("Content-Type", "audio/ogg")
+	}
 	http.ServeFile(w, r, fullPath)
 }
 

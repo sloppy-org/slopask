@@ -144,9 +144,9 @@ function renderMediaHTML(mediaList) {
     if (m.kind === 'image') {
       html += '<img src="' + esc(m.url) + '" alt="' + esc(m.filename) + '">';
     } else if (m.kind === 'audio') {
-      html += '<audio controls src="' + esc(m.url) + '"></audio>';
+      html += '<audio controls preload="metadata" src="' + esc(m.url) + '"></audio>';
     } else if (m.kind === 'video') {
-      html += '<video controls src="' + esc(m.url) + '"></video>';
+      html += '<video controls preload="metadata" src="' + esc(m.url) + '"></video>';
     }
   }
   html += '</div>';
@@ -173,9 +173,9 @@ function renderAnswerHTML(q) {
     for (var i = 0; i < answer.media.length; i++) {
       var m = answer.media[i];
       if (m.kind === 'video') {
-        html += '<video controls src="' + esc(m.url) + '" style="width:100%;max-width:400px"></video>';
+        html += '<video controls preload="metadata" src="' + esc(m.url) + '" style="width:100%;max-width:400px"></video>';
       } else if (m.kind === 'audio') {
-        html += '<audio controls src="' + esc(m.url) + '"></audio>';
+        html += '<audio controls preload="metadata" src="' + esc(m.url) + '"></audio>';
       } else if (m.kind === 'image') {
         html += '<img src="' + esc(m.url) + '" alt="' + esc(m.filename) + '" style="max-width:100%;max-height:200px">';
       }
