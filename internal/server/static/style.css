@@ -1,0 +1,179 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  background: #fff;
+  color: #000;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem;
+  -webkit-text-size-adjust: 100%;
+}
+a { color: inherit; }
+
+/* header */
+header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #000; padding-bottom: 0.5rem; margin-bottom: 1.25rem; }
+header h1 { font-size: 0.95rem; font-weight: 600; }
+header .brand { font-size: 0.75rem; color: #999; white-space: nowrap; margin-left: 1rem; }
+
+/* compose */
+#compose { margin-bottom: 1.5rem; }
+#compose textarea {
+  width: 100%; border: 1px solid #000; outline: none; resize: none;
+  font: inherit; font-size: 16px; min-height: 5rem; display: block;
+  padding: 0.5rem; overflow: hidden;
+  field-sizing: content;
+}
+#compose textarea:focus { border-color: #000; }
+#compose textarea::placeholder { color: #bbb; }
+#compose-preview { font-size: 0.9rem; margin-top: 0.35rem; padding: 0.35rem 0; overflow-x: auto; color: #333; }
+#compose-preview:empty { display: none; }
+.file-list { font-size: 0.75rem; color: #555; margin-top: 0.25rem; }
+.file-list span { margin-right: 0.75rem; }
+#compose-bar { display: flex; align-items: center; margin-top: 0.35rem; gap: 0.15rem; }
+.att-btn {
+  background: none; border: none; cursor: pointer; color: #000;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 40px; padding: 0; opacity: 0.55;
+}
+.att-btn svg { width: 18px; height: 18px; }
+@media (hover: hover) { .att-btn:hover { opacity: 1; } }
+.att-btn.active { opacity: 1; }
+#compose-bar .spacer { flex: 1; }
+#btn-submit {
+  background: none; color: #000; border: 1px solid #000; font: inherit;
+  font-size: 0.75rem; padding: 0 0.75rem; cursor: pointer;
+  height: 40px; display: inline-flex; align-items: center;
+  letter-spacing: 0.02em;
+}
+@media (hover: hover) { #btn-submit:hover { background: #000; color: #fff; } }
+
+/* recorder */
+#recorder { display: none; margin-top: 0.35rem; border: 1px solid #ccc; padding: 0.5rem; }
+#recorder.active { display: block; }
+#rec-top { display: flex; align-items: center; gap: 0.5rem; }
+#rec-canvas { width: 100%; height: 36px; display: block; margin-top: 0.35rem; }
+.rec-dot { width: 8px; height: 8px; background: red; border-radius: 50%; flex-shrink: 0; opacity: 0; }
+#recorder.recording .rec-dot { opacity: 1; animation: blink 1s infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.rec-timer { font-size: 0.8rem; min-width: 3em; color: #555; font-variant-numeric: tabular-nums; }
+.rec-btn {
+  background: none; border: none; cursor: pointer; opacity: 0.4;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; padding: 0;
+}
+.rec-btn svg { width: 16px; height: 16px; }
+.rec-btn:disabled { opacity: 0.1; cursor: default; }
+@media (hover: hover) { .rec-btn:not(:disabled):hover { opacity: 1; } }
+.rec-preview { display: none; width: 100%; aspect-ratio: 16/9; background: #000; margin-top: 0.35rem; }
+#recorder.video-mode .rec-preview { display: block; }
+
+/* sort */
+#sort { font-size: 0.75rem; margin-bottom: 0.5rem; color: #999; }
+#sort a { cursor: pointer; color: #999; text-decoration: none; margin-right: 0.5rem; -webkit-tap-highlight-color: transparent; }
+#sort a.active { color: #000; font-weight: 700; }
+@media (hover: hover) { #sort a:hover { color: #000; } }
+
+/* questions */
+.q { border-bottom: 1px solid #eee; padding: 0.75rem 0; }
+.q:first-child { padding-top: 0; }
+.q-body { word-break: break-word; overflow-x: auto; }
+.q-body pre { background: #f5f5f5; border: 1px solid #eee; padding: 0.5rem; overflow-x: auto; margin: 0.4rem 0; font-size: 0.85rem; }
+.q-body code { background: #f5f5f5; padding: 0.1rem 0.3rem; font-size: 0.9em; }
+.q-body pre code { background: none; padding: 0; }
+.q-body blockquote { border-left: 2px solid #ccc; padding-left: 0.5rem; color: #555; margin: 0.3rem 0; }
+.q-body ul, .q-body ol { margin: 0.3rem 0 0.3rem 1.5rem; }
+.q-body h1, .q-body h2, .q-body h3, .q-body h4 { margin: 0.4rem 0 0.2rem; font-size: 1rem; }
+.q-body hr { border: none; border-top: 1px solid #ccc; margin: 0.5rem 0; }
+.q-body a { text-decoration: underline; }
+.q-body .katex-display { overflow-x: auto; overflow-y: hidden; }
+.q-meta { font-size: 0.8rem; color: #999; margin-top: 0.4rem; display: flex; gap: 0.75rem; align-items: center; }
+.q-vote {
+  cursor: pointer; user-select: none;
+  min-height: 44px;
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  -webkit-tap-highlight-color: transparent;
+  color: #999;
+}
+.q-vote svg { width: 16px; height: 16px; flex-shrink: 0; transition: transform 0.1s; }
+.q-vote .vote-count { font-variant-numeric: tabular-nums; font-size: 0.85rem; }
+@media (hover: hover) { .q-vote:hover { color: #000; } }
+.q-vote:active svg { transform: translateY(-2px); }
+.q-vote.voted { color: #000; }
+.q-vote.voted svg { fill: #000; stroke: #000; }
+.q-media { margin-top: 0.5rem; }
+.q-media img { max-width: 100%; max-height: 200px; border: 1px solid #eee; }
+.q-media audio, .q-media video { max-width: 100%; margin-top: 0.25rem; }
+
+/* answer */
+.q-answer { margin-top: 0.5rem; margin-left: 0.5rem; padding: 0.5rem 0 0.5rem 0.75rem; border-left: 2px solid #000; color: #333; }
+.q-answer video, .q-answer audio { max-width: 100%; margin-top: 0.4rem; }
+.q-answer .katex-display { overflow-x: auto; overflow-y: hidden; }
+
+/* answer bar: version nav + thumbs */
+.q-answer-bar {
+  display: flex; align-items: center; gap: 0.35rem;
+  margin-top: 0.4rem; font-size: 0.8rem; color: #999;
+}
+.answer-nav-btn {
+  background: none; border: none; cursor: pointer; color: #999;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.answer-nav-btn svg { width: 14px; height: 14px; }
+.answer-nav-btn:disabled { opacity: 0.2; cursor: default; }
+@media (hover: hover) { .answer-nav-btn:not(:disabled):hover { color: #000; } }
+.answer-version { font-variant-numeric: tabular-nums; font-size: 0.75rem; min-width: 2.5em; text-align: center; }
+.answer-spacer { flex: 1; }
+.answer-thumb {
+  cursor: pointer; user-select: none;
+  display: inline-flex; align-items: center; gap: 0.2rem;
+  min-height: 28px; color: #999;
+  -webkit-tap-highlight-color: transparent;
+}
+.answer-thumb svg { width: 14px; height: 14px; flex-shrink: 0; }
+.answer-thumb .thumb-count { font-variant-numeric: tabular-nums; font-size: 0.75rem; }
+@media (hover: hover) { .answer-thumb:hover { color: #000; } }
+.answer-thumb.voted { color: #000; }
+.answer-thumb.voted svg { fill: #000; }
+
+/* admin answer form */
+.q-answer-form { margin-top: 0.5rem; margin-left: 0.5rem; padding-left: 0.75rem; border-left: 2px solid #ccc; }
+.q-answer-form textarea {
+  width: 100%; border: 1px solid #ccc; outline: none; resize: none;
+  font: inherit; font-size: 14px; min-height: 3rem; display: block;
+  padding: 0.4rem; overflow: hidden;
+  field-sizing: content;
+}
+.q-answer-form textarea:focus { border-color: #000; }
+.q-answer-form .answer-bar { display: flex; align-items: center; margin-top: 0.25rem; gap: 0.25rem; }
+.q-answer-form .answer-bar .spacer { flex: 1; }
+.answer-submit-btn {
+  background: none; color: #000; border: 1px solid #000; font: inherit;
+  font-size: 0.7rem; padding: 0 0.5rem; cursor: pointer;
+  height: 32px; display: inline-flex; align-items: center;
+}
+@media (hover: hover) { .answer-submit-btn:hover { background: #000; color: #fff; } }
+
+/* admin delete */
+.q-delete {
+  cursor: pointer; font-size: 0.75rem; color: #c00;
+  background: none; border: none; font: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) { .q-delete:hover { text-decoration: underline; } }
+
+/* footer */
+footer { margin-top: 2rem; padding-top: 0.75rem; border-top: 1px solid #eee; font-size: 0.7rem; color: #bbb; }
+footer a { color: #999; }
+footer span { margin: 0 0.25rem; }
+
+/* responsive */
+@media (max-width: 480px) {
+  body { padding: 1rem 0.75rem; }
+  header { flex-direction: column; gap: 0.15rem; }
+  header .brand { margin-left: 0; }
+  .rec-preview { width: 100% !important; }
+}

@@ -1,0 +1,10 @@
+/slopask
+data/
+uploads/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+mockups/variant-a.html
+mockups/variant-b.html
+mockups/variant-c.html

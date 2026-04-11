@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} (admin) - ask.sloppy</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<header>
+  <h1>{{.Title}} <span style="font-weight:400;color:#999;font-size:0.8rem">(admin)</span></h1>
+  <span class="brand">ask.sloppy</span>
+</header>
+
+<div id="compose">
+  <textarea id="input" placeholder="Markdown + LaTeX ..."></textarea>
+  <div id="compose-preview"></div>
+  <div id="file-list" class="file-list"></div>
+  <div id="recorder">
+    <div id="rec-top">
+      <span class="rec-dot"></span>
+      <span class="rec-timer" id="rec-timer">0:00</span>
+      <button type="button" class="rec-btn" id="rec-start" title="record">
+        <svg viewBox="0 0 16 16" fill="red" stroke="none"><circle cx="8" cy="8" r="5"/></svg>
+      </button>
+      <button type="button" class="rec-btn" id="rec-pause" title="pause" disabled>
+        <svg viewBox="0 0 16 16" fill="#000" stroke="none"><rect x="3" y="2" width="4" height="12"/><rect x="9" y="2" width="4" height="12"/></svg>
+      </button>
+      <button type="button" class="rec-btn" id="rec-done" title="done" disabled>
+        <svg viewBox="0 0 16 16" fill="none" stroke="#000" stroke-width="2"><polyline points="3,8 7,12 13,4"/></svg>
+      </button>
+      <button type="button" class="rec-btn" id="rec-cancel" title="cancel">
+        <svg viewBox="0 0 16 16" fill="none" stroke="#000" stroke-width="2"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>
+      </button>
+    </div>
+    <canvas id="rec-canvas"></canvas>
+    <video id="rec-preview" class="rec-preview" muted playsinline></video>
+  </div>
+  <div id="compose-bar">
+    <label class="att-btn" title="image">
+      <svg viewBox="0 0 16 16" fill="none" stroke="#000" stroke-width="1.2"><rect x="1.5" y="2.5" width="13" height="11" rx="1"/><circle cx="5.5" cy="6.5" r="1.5"/><path d="M1.5 11l3.5-3.5 2.5 2.5 2.5-3 4 4"/></svg>
+      <input type="file" accept="image/*" hidden id="file-img">
+    </label>
+    <button type="button" class="att-btn" id="btn-audio" title="record audio">
+      <svg viewBox="0 0 16 16" fill="none" stroke="#000" stroke-width="1.2"><rect x="5.5" y="1.5" width="5" height="8" rx="2.5"/><path d="M3 8.5a5 5 0 0010 0"/><line x1="8" y1="13.5" x2="8" y2="15"/></svg>
+    </button>
+    <button type="button" class="att-btn" id="btn-video" title="record video">
+      <svg viewBox="0 0 16 16" fill="none" stroke="#000" stroke-width="1.2"><rect x="1.5" y="3.5" width="9" height="9" rx="1"/><path d="M10.5 6l4-2.5v9L10.5 10"/></svg>
+    </button>
+    <label class="att-btn" title="file">
+      <svg viewBox="0 0 16 16" fill="none" stroke="#000" stroke-width="1.2"><path d="M13.5 7l-5.5 5.5a3 3 0 01-4.24-4.24l6.5-6.5a2 2 0 012.83 2.83l-6.5 6.5a1 1 0 01-1.42-1.42L10.5 4.5"/></svg>
+      <input type="file" hidden id="file-any">
+    </label>
+    <div class="spacer"></div>
+    <button type="button" id="btn-submit">send</button>
+  </div>
+</div>
+
+<div id="sort">
+  <a class="active" data-sort="votes">top</a>
+  <a data-sort="newest">new</a>
+</div>
+
+<div id="questions"></div>
+
+<footer>
+  <a href="#impressum" id="link-impressum">impressum</a><span>&middot;</span>albert@tugraz.at<span>&middot;</span>anonymous<span>&middot;</span>no cookies
+</footer>
+
+<div id="impressum-page" style="display:none">
+  <p><strong>Betreiber</strong></p>
+  <p>Institut f&uuml;r Theoretische und Computational Physics, TU Graz</p>
+  <p style="margin-top:0.75rem"><strong>Kontakt</strong></p>
+  <p>albert@tugraz.at</p>
+  <p style="margin-top:0.75rem"><strong>Datenschutz</strong></p>
+  <p>Fragen sind anonym. Es werden keine personenbezogenen Daten, IP-Adressen oder Cookies gespeichert. Inhalte werden auf unserem Server gespeichert.</p>
+  <p style="margin-top:0.75rem"><strong>L&ouml;schung</strong></p>
+  <p>Falls Inhalte gel&ouml;scht werden sollen, bitte an albert@tugraz.at schreiben.</p>
+  <p style="margin-top:1rem"><a href="#" id="link-back">&larr; back</a></p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/contrib/auto-render.min.js"></script>
+<script>window.SLOPASK = { token: "{{.AdminToken}}", basePath: "/admin/{{.AdminToken}}", isAdmin: true };</script>
+<script src="/static/app.js"></script>
+</body>
+</html>
