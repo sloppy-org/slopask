@@ -376,6 +376,44 @@ func (s *Server) handleCreateAnswer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, answer)
 }
 
+func (s *Server) handleDeleteMedia(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+	_, err := s.store.GetRoomByAdminToken(token)
+	if errors.Is(err, store.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+
+	midStr := chi.URLParam(r, "mid")
+	mid, err := strconv.ParseInt(midStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid media id", http.StatusBadRequest)
+		return
+	}
+
+	// Determine parent type from URL path.
+	parentType := "question"
+	if strings.Contains(r.URL.Path, "/media/answer/") {
+		parentType = "answer"
+	}
+
+	diskPath, err := s.store.DeleteMedia(parentType, mid)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+
+	// Remove file from disk.
+	fullPath := filepath.Join(s.uploadsDir, diskPath)
+	os.Remove(fullPath)
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s *Server) handleDeleteQuestion(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
 	room, err := s.store.GetRoomByAdminToken(token)

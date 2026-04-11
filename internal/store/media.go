@@ -84,6 +84,23 @@ func (s *Store) getMediaByID(table, col string, id int64) (*Media, error) {
 	return &m, nil
 }
 
+// DeleteMedia removes a media record and returns its disk_path for file cleanup.
+func (s *Store) DeleteMedia(parentType string, mediaID int64) (string, error) {
+	table, _ := mediaTableCol(parentType)
+	var diskPath string
+	err := s.db.QueryRow(
+		fmt.Sprintf(`SELECT disk_path FROM %s WHERE id = ?`, table), mediaID,
+	).Scan(&diskPath)
+	if err != nil {
+		return "", fmt.Errorf("get media disk_path: %w", err)
+	}
+	_, err = s.db.Exec(fmt.Sprintf(`DELETE FROM %s WHERE id = ?`, table), mediaID)
+	if err != nil {
+		return "", fmt.Errorf("delete media: %w", err)
+	}
+	return diskPath, nil
+}
+
 func mediaTableCol(parentType string) (string, string) {
 	if parentType == "answer" {
 		return "answer_media", "answer_id"

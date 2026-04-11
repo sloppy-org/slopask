@@ -136,11 +136,12 @@ var ARROW_RIGHT = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" st
 var THUMB_UP = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M5 14H3a1 1 0 01-1-1V8a1 1 0 011-1h2m0 7V7m0 7h5.5a1.5 1.5 0 001.45-1.1l1.2-4.8A1.5 1.5 0 0013.7 6H10V3.5A1.5 1.5 0 008.5 2L5 7"/></svg>';
 var THUMB_DOWN = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M11 2h2a1 1 0 011 1v5a1 1 0 01-1 1h-2m0-7v7m0-7H5.5A1.5 1.5 0 004.05 3.1l-1.2 4.8A1.5 1.5 0 004.3 10H8v2.5A1.5 1.5 0 009.5 14L13 9"/></svg>';
 
-function renderMediaHTML(mediaList) {
+function renderMediaHTML(mediaList, parentType) {
   if (!mediaList || mediaList.length === 0) return '';
   var html = '<div class="q-media">';
   for (var i = 0; i < mediaList.length; i++) {
     var m = mediaList[i];
+    html += '<div class="media-item">';
     if (m.kind === 'image') {
       html += '<img src="' + esc(m.url) + '" alt="' + esc(m.filename) + '">';
     } else if (m.kind === 'audio') {
@@ -148,6 +149,11 @@ function renderMediaHTML(mediaList) {
     } else if (m.kind === 'video') {
       html += '<video controls preload="metadata" src="' + esc(m.url) + '"></video>';
     }
+    if (isAdmin) {
+      var pt = parentType || 'question';
+      html += '<button class="media-delete" data-mid="' + m.id + '" data-type="' + pt + '">x</button>';
+    }
+    html += '</div>';
   }
   html += '</div>';
   return html;
@@ -169,18 +175,7 @@ function renderAnswerHTML(q) {
 
   var html = '<div class="q-answer" data-answer-id="' + answer.id + '">';
   html += '<div class="q-answer-text">' + renderMd(answer.body) + '</div>';
-  if (answer.media) {
-    for (var i = 0; i < answer.media.length; i++) {
-      var m = answer.media[i];
-      if (m.kind === 'video') {
-        html += '<video controls preload="metadata" src="' + esc(m.url) + '" style="width:100%;max-width:400px"></video>';
-      } else if (m.kind === 'audio') {
-        html += '<audio controls preload="metadata" src="' + esc(m.url) + '"></audio>';
-      } else if (m.kind === 'image') {
-        html += '<img src="' + esc(m.url) + '" alt="' + esc(m.filename) + '" style="max-width:100%;max-height:200px">';
-      }
-    }
-  }
+  html += renderMediaHTML(answer.media, 'answer');
 
   // Version navigation + thumbs bar.
   var myVote = answerVotes[answer.id] || 0;
@@ -346,6 +341,16 @@ document.getElementById('questions').addEventListener('click', function(e) {
       questions = questions.filter(function(q) { return q.id !== qid; });
       renderQuestions();
     });
+  }
+
+  // Admin: delete individual media.
+  var mediaDel = e.target.closest('.media-delete');
+  if (mediaDel && isAdmin) {
+    var mid = parseInt(mediaDel.dataset.mid);
+    var mtype = mediaDel.dataset.type;
+    fetch(basePath + '/media/' + mtype + '/' + mid, { method: 'DELETE' })
+      .then(function() { fetchQuestions(); });
+    return;
   }
 
   // Answer version navigation.
