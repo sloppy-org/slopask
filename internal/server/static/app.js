@@ -262,7 +262,34 @@ function renderQuestions() {
       throwOnError: false
     });
   }
+  // Collapse all except the expanded one.
+  var items = c.querySelectorAll('.q');
+  for (var i = 0; i < items.length; i++) {
+    var qid = parseInt(items[i].dataset.qid);
+    if (qid !== expandedQID) items[i].classList.add('collapsed');
+  }
 }
+
+var expandedQID = null;
+
+// Accordion: click to expand, collapse others.
+document.getElementById('questions').addEventListener('click', function(e) {
+  // Don't toggle when clicking interactive elements.
+  if (e.target.closest('button, a, .q-vote, .q-answer-form, textarea, input, label, video, audio, .answer-thumb, .answer-nav-btn')) return;
+  var qEl = e.target.closest('.q');
+  if (!qEl) return;
+  var qid = parseInt(qEl.dataset.qid);
+  if (expandedQID === qid) {
+    expandedQID = null;
+  } else {
+    expandedQID = qid;
+  }
+  var items = document.querySelectorAll('#questions .q');
+  for (var i = 0; i < items.length; i++) {
+    var id = parseInt(items[i].dataset.qid);
+    items[i].classList.toggle('collapsed', id !== expandedQID);
+  }
+});
 
 // Fetch questions from the server.
 function fetchQuestions() {
