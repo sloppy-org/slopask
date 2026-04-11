@@ -419,8 +419,10 @@ document.getElementById('questions').addEventListener('click', function(e) {
     if (!confirm('Delete this media?')) return;
     var mid = parseInt(mediaDel.dataset.mid);
     var mtype = mediaDel.dataset.type;
-    var delUrl = basePath + (isAdmin ? '/media/' + mtype + '/' + mid : '/questions/' + mediaDel.closest('.q').dataset.qid + '/media/' + mid + '?voter_id=' + voterID);
-    fetch(delUrl, { method: 'DELETE' }).then(function(r) {
+    var delUrl = basePath + (isAdmin ? '/media/' + mtype + '/' + mid : '/questions/' + mediaDel.closest('.q').dataset.qid + '/media/' + mid);
+    var delOpts = { method: 'DELETE' };
+    if (!isAdmin) { delOpts.headers = { 'X-Voter-ID': voterID }; }
+    fetch(delUrl, delOpts).then(function(r) {
       if (r.ok) fetchQuestions();
     });
     return;

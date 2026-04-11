@@ -174,6 +174,7 @@ func (s *Server) handleVote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var req struct {
 		VoterID string `json:"voter_id"`
 	}
@@ -189,7 +190,7 @@ func (s *Server) handleVote(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.store.Vote(qid, req.VoterID); err != nil {
-		http.Error(w, err.Error(), http.StatusConflict)
+		http.Error(w, "already voted", http.StatusConflict)
 		return
 	}
 
@@ -216,6 +217,7 @@ func (s *Server) handleUnvote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var req struct {
 		VoterID string `json:"voter_id"`
 	}
@@ -352,6 +354,17 @@ func (s *Server) handleUpdateQuestion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	existing, err := s.store.GetQuestion(qid)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	if existing.RoomID != room.ID {
+		http.NotFound(w, r)
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var req struct {
 		Body string `json:"body"`
 	}
@@ -391,6 +404,16 @@ func (s *Server) handleCreateAnswer(w http.ResponseWriter, r *http.Request) {
 	qid, err := parseQID(r)
 	if err != nil {
 		http.Error(w, "invalid question id", http.StatusBadRequest)
+		return
+	}
+
+	existing, err := s.store.GetQuestion(qid)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	if existing.RoomID != room.ID {
+		http.NotFound(w, r)
 		return
 	}
 
@@ -453,6 +476,7 @@ func (s *Server) handleUserEditQuestion(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var req struct {
 		Body    string `json:"body"`
 		VoterID string `json:"voter_id"`
@@ -498,6 +522,7 @@ func (s *Server) handleUserDeleteQuestion(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var req struct {
 		VoterID string `json:"voter_id"`
 	}
@@ -541,8 +566,8 @@ func (s *Server) handleUserDeleteMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check ownership via query param voter_id.
-	voterID := r.URL.Query().Get("voter_id")
+	// Check ownership via X-Voter-ID header.
+	voterID := r.Header.Get("X-Voter-ID")
 	if voterID == "" {
 		http.Error(w, "voter_id required", http.StatusBadRequest)
 		return
@@ -576,7 +601,7 @@ func (s *Server) handleUserDeleteMedia(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDeleteMedia(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
-	_, err := s.store.GetRoomByAdminToken(token)
+	room, err := s.store.GetRoomByAdminToken(token)
 	if errors.Is(err, store.ErrNotFound) {
 		http.NotFound(w, r)
 		return
@@ -599,6 +624,16 @@ func (s *Server) handleDeleteMedia(w http.ResponseWriter, r *http.Request) {
 		parentType = "answer"
 	}
 
+	mediaRoomID, err := s.store.GetMediaRoomID(parentType, mid)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	if mediaRoomID != room.ID {
+		http.NotFound(w, r)
+		return
+	}
+
 	diskPath, err := s.store.DeleteMedia(parentType, mid)
 	if err != nil {
 		serverError(w, err)
@@ -614,7 +649,7 @@ func (s *Server) handleDeleteMedia(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleUpdateAnswer(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
-	_, err := s.store.GetRoomByAdminToken(token)
+	room, err := s.store.GetRoomByAdminToken(token)
 	if errors.Is(err, store.ErrNotFound) {
 		http.NotFound(w, r)
 		return
@@ -631,6 +666,22 @@ func (s *Server) handleUpdateAnswer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	existing, err := s.store.GetAnswerByID(aid)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	q, err := s.store.GetQuestion(existing.QuestionID)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	if q.RoomID != room.ID {
+		http.NotFound(w, r)
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var req struct {
 		Body string `json:"body"`
 	}
@@ -662,6 +713,16 @@ func (s *Server) handleDeleteQuestion(w http.ResponseWriter, r *http.Request) {
 	qid, err := parseQID(r)
 	if err != nil {
 		http.Error(w, "invalid question id", http.StatusBadRequest)
+		return
+	}
+
+	q, err := s.store.GetQuestion(qid)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	if q.RoomID != room.ID {
+		http.NotFound(w, r)
 		return
 	}
 
@@ -713,7 +774,7 @@ func (s *Server) handleAPIListQuestions(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) handleAPIGetQuestion(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
-	_, err := s.store.GetRoomByAdminToken(token)
+	room, err := s.store.GetRoomByAdminToken(token)
 	if errors.Is(err, store.ErrNotFound) {
 		http.NotFound(w, r)
 		return
@@ -732,6 +793,10 @@ func (s *Server) handleAPIGetQuestion(w http.ResponseWriter, r *http.Request) {
 	q, err := s.store.GetQuestion(qid)
 	if err != nil {
 		serverError(w, err)
+		return
+	}
+	if q.RoomID != room.ID {
+		http.NotFound(w, r)
 		return
 	}
 	writeJSON(w, http.StatusOK, q)
@@ -757,6 +822,16 @@ func (s *Server) handleAPICreateAnswer(w http.ResponseWriter, r *http.Request) {
 	qid, err := parseQID(r)
 	if err != nil {
 		http.Error(w, "invalid question id", http.StatusBadRequest)
+		return
+	}
+
+	existing, err := s.store.GetQuestion(qid)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	if existing.RoomID != room.ID {
+		http.NotFound(w, r)
 		return
 	}
 
@@ -805,6 +880,7 @@ func (s *Server) handleVoteAnswer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var req struct {
 		VoterID   string `json:"voter_id"`
 		Direction int    `json:"direction"`
@@ -865,6 +941,20 @@ func (s *Server) handleMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fullPath := filepath.Join(s.uploadsDir, clean)
+
+	// Verify the resolved path stays under uploadsDir.
+	if !strings.HasPrefix(fullPath, filepath.Clean(s.uploadsDir)+string(os.PathSeparator)) {
+		http.NotFound(w, r)
+		return
+	}
+
+	// Prevent directory listing: only serve regular files.
+	info, err := os.Stat(fullPath)
+	if err != nil || info.IsDir() {
+		http.NotFound(w, r)
+		return
+	}
+
 	// Ensure correct Content-Type for media formats Go doesn't detect well.
 	ext := strings.ToLower(filepath.Ext(clean))
 	switch ext {

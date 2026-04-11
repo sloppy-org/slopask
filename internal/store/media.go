@@ -101,6 +101,31 @@ func (s *Store) DeleteMedia(parentType string, mediaID int64) (string, error) {
 	return diskPath, nil
 }
 
+// GetMediaRoomID returns the room_id that owns a media item by tracing through
+// the parent chain: question_media -> questions, or answer_media -> answers -> questions.
+func (s *Store) GetMediaRoomID(parentType string, mediaID int64) (int64, error) {
+	var roomID int64
+	var err error
+	if parentType == "answer" {
+		err = s.db.QueryRow(
+			`SELECT q.room_id FROM answer_media am
+			 JOIN answers a ON am.answer_id = a.id
+			 JOIN questions q ON a.question_id = q.id
+			 WHERE am.id = ?`, mediaID,
+		).Scan(&roomID)
+	} else {
+		err = s.db.QueryRow(
+			`SELECT q.room_id FROM question_media qm
+			 JOIN questions q ON qm.question_id = q.id
+			 WHERE qm.id = ?`, mediaID,
+		).Scan(&roomID)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("get media room_id: %w", err)
+	}
+	return roomID, nil
+}
+
 func mediaTableCol(parentType string) (string, string) {
 	if parentType == "answer" {
 		return "answer_media", "answer_id"
