@@ -226,7 +226,18 @@ function renderQuestions() {
       var label = hasAnswers ? 'new version' : 'answer';
       answerForm = '<div class="q-answer-form" data-qid="' + q.id + '">' +
         '<textarea placeholder="' + label + '..."></textarea>' +
+        '<div class="answer-file-list" style="font-size:0.75rem;color:#555"></div>' +
         '<div class="answer-bar">' +
+          '<label class="att-btn" title="image" style="width:32px;height:32px">' +
+            '<svg viewBox="0 0 16 16" fill="none" stroke="#000" stroke-width="1.2"><rect x="1.5" y="2.5" width="13" height="11" rx="1"/><circle cx="5.5" cy="6.5" r="1.5"/><path d="M1.5 11l3.5-3.5 2.5 2.5 2.5-3 4 4"/></svg>' +
+            '<input type="file" accept="image/*" hidden class="answer-file">' +
+          '</label>' +
+          '<button type="button" class="att-btn answer-rec-audio" title="record audio" style="width:32px;height:32px">' +
+            '<svg viewBox="0 0 16 16" fill="none" stroke="#000" stroke-width="1.2"><rect x="5.5" y="1.5" width="5" height="8" rx="2.5"/><path d="M3 8.5a5 5 0 0010 0"/><line x1="8" y1="13.5" x2="8" y2="15"/></svg>' +
+          '</button>' +
+          '<button type="button" class="att-btn answer-rec-video" title="record video" style="width:32px;height:32px">' +
+            '<svg viewBox="0 0 16 16" fill="none" stroke="#000" stroke-width="1.2"><rect x="1.5" y="3.5" width="9" height="9" rx="1"/><path d="M10.5 6l4-2.5v9L10.5 10"/></svg>' +
+          '</button>' +
           '<label class="att-btn" title="file" style="width:32px;height:32px">' +
             '<svg viewBox="0 0 16 16" fill="none" stroke="#000" stroke-width="1.2"><path d="M13.5 7l-5.5 5.5a3 3 0 01-4.24-4.24l6.5-6.5a2 2 0 012.83 2.83l-6.5 6.5a1 1 0 01-1.42-1.42L10.5 4.5"/></svg>' +
             '<input type="file" hidden class="answer-file">' +
@@ -365,6 +376,58 @@ document.getElementById('questions').addEventListener('click', function(e) {
   }
 });
 
+// Admin: per-form pending files for answer recordings.
+var answerPendingFiles = {};
+
+// Admin: answer file inputs.
+document.getElementById('questions').addEventListener('change', function(e) {
+  var fi = e.target.closest('.answer-file');
+  if (!fi) return;
+  var form = fi.closest('.q-answer-form');
+  var qid = form.dataset.qid;
+  if (!answerPendingFiles[qid]) answerPendingFiles[qid] = [];
+  for (var i = 0; i < fi.files.length; i++) {
+    answerPendingFiles[qid].push(fi.files[i]);
+  }
+  var fl = form.querySelector('.answer-file-list');
+  if (fl) fl.innerHTML += '<span>' + fi.files[0].name + '</span> ';
+});
+
+// Admin: answer audio/video recording.
+document.getElementById('questions').addEventListener('click', function(e) {
+  var audioBtn = e.target.closest('.answer-rec-audio');
+  var videoBtn = e.target.closest('.answer-rec-video');
+  if (!audioBtn && !videoBtn) return;
+  var mode = audioBtn ? 'audio' : 'video';
+  var form = (audioBtn || videoBtn).closest('.q-answer-form');
+  var qid = form.dataset.qid;
+  var constraints = mode === 'video' ? { audio: true, video: true } : { audio: true };
+  navigator.mediaDevices.getUserMedia(constraints).then(function(stream) {
+    var chunks = [];
+    var mr = new MediaRecorder(stream, { mimeType: mode === 'video' ? 'video/webm' : 'audio/webm' });
+    mr.ondataavailable = function(e) { if (e.data.size > 0) chunks.push(e.data); };
+    mr.start();
+    var btn = audioBtn || videoBtn;
+    btn.style.opacity = '1';
+    btn.style.color = 'red';
+    btn.onclick = function() {
+      mr.onstop = function() {
+        stream.getTracks().forEach(function(t) { t.stop(); });
+        var blob = new Blob(chunks, { type: mode === 'video' ? 'video/webm' : 'audio/webm' });
+        var file = new File([blob], mode + '_answer.webm', { type: blob.type });
+        if (!answerPendingFiles[qid]) answerPendingFiles[qid] = [];
+        answerPendingFiles[qid].push(file);
+        var fl = form.querySelector('.answer-file-list');
+        if (fl) fl.innerHTML += '<span>' + mode + ' rec</span> ';
+        btn.style.opacity = '';
+        btn.style.color = '';
+        btn.onclick = null;
+      };
+      mr.stop();
+    };
+  }).catch(function() { alert('No access to ' + (mode === 'video' ? 'camera' : 'microphone')); });
+});
+
 // Admin: submit answer.
 document.getElementById('questions').addEventListener('click', function(e) {
   var btn = e.target.closest('.answer-submit-btn');
@@ -372,21 +435,32 @@ document.getElementById('questions').addEventListener('click', function(e) {
   var form = btn.closest('.q-answer-form');
   var qid = parseInt(form.dataset.qid);
   var textarea = form.querySelector('textarea');
-  var fileInput = form.querySelector('.answer-file');
   var body = textarea.value.trim();
-  if (!body && (!fileInput.files || fileInput.files.length === 0)) return;
+  var files = answerPendingFiles[qid] || [];
+  // also collect from file inputs
+  var fileInputs = form.querySelectorAll('.answer-file');
+  for (var fi = 0; fi < fileInputs.length; fi++) {
+    if (fileInputs[fi].files) {
+      for (var j = 0; j < fileInputs[fi].files.length; j++) {
+        files.push(fileInputs[fi].files[j]);
+      }
+    }
+  }
+  if (!body && files.length === 0) return;
 
   var fd = new FormData();
   fd.append('body', body);
-  if (fileInput.files) {
-    for (var i = 0; i < fileInput.files.length; i++) {
-      fd.append('media', fileInput.files[i]);
-    }
+  for (var i = 0; i < files.length; i++) {
+    fd.append('media', files[i]);
   }
+  btn.disabled = true;
   fetch(basePath + '/questions/' + qid + '/answer', {
     method: 'POST',
     body: fd
-  }).then(function(r) { return r.json(); }).then(function(answer) {
+  }).then(function(r) {
+    if (!r.ok) throw new Error('status ' + r.status);
+    return r.json();
+  }).then(function(answer) {
     var q = questions.find(function(q) { return q.id === qid; });
     if (q) {
       if (!q.answers) q.answers = [];
@@ -394,7 +468,10 @@ document.getElementById('questions').addEventListener('click', function(e) {
       q.answered = true;
       answerVersionIndex[qid] = q.answers.length - 1;
     }
+    answerPendingFiles[qid] = [];
     renderQuestions();
+  }).catch(function(err) { console.error('answer submit:', err); }).finally(function() {
+    btn.disabled = false;
   });
 });
 
