@@ -24,16 +24,22 @@ TEMPLATE_TEX = SCRIPT_DIR / "answer_template.tex"
 DEFAULT_API_URL = "https://ask.sloppy.at"
 
 
-def load_dotenv():
-    """Load .env from the repo root (gitignored, contains tokens)."""
-    env_file = REPO_DIR / ".env"
-    if env_file.exists():
-        for line in env_file.read_text().splitlines():
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            k, v = line.split("=", 1)
-            os.environ.setdefault(k.strip(), v.strip())
+def load_dotenv_file(path):
+    """Load a single .env file, setting defaults (won't override existing)."""
+    if not Path(path).exists():
+        return
+    for line in Path(path).read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        os.environ.setdefault(k.strip(), v.strip())
+
+
+def load_dotenv(course_dir="."):
+    """Load .env from course slopask dir, then repo root."""
+    load_dotenv_file(Path(course_dir) / "slopask" / ".env")
+    load_dotenv_file(REPO_DIR / ".env")
 
 
 def load_course_config(course_dir):
@@ -270,7 +276,7 @@ def cmd_generate(args):
             sys.exit(1)
 
     # Workdir.
-    workdir = Path(args.workdir) if args.workdir else Path(tempfile.mkdtemp(prefix=f"slopask_q{args.qid}_"))
+    workdir = Path(args.workdir) if args.workdir else Path(args.course_dir) / "slopask" / f"q{args.qid}"
     workdir.mkdir(parents=True, exist_ok=True)
     print(f"workdir: {workdir}")
 
@@ -352,9 +358,8 @@ def cmd_upload(args):
 
 
 def main():
-    load_dotenv()
     parser = argparse.ArgumentParser(description="slopask answer pipeline")
-    parser.add_argument("--api-url", default=os.environ.get("SLOPASK_API_URL", DEFAULT_API_URL))
+    parser.add_argument("--api-url", default=None)
     sub = parser.add_subparsers(dest="command", required=True)
 
     gen = sub.add_parser("generate", help="Generate answer for a question")
@@ -369,11 +374,15 @@ def main():
     up.add_argument("--workdir", required=True, help="Working directory from generate step")
 
     args = parser.parse_args()
-    # Token fallback: --token > $SLOPASK_TOKEN > $SLOPASK_WSD_TOKEN > $SLOPASK_PROGPHYS_TOKEN
+    course_dir = getattr(args, "course_dir", ".")
+    load_dotenv(course_dir)
+    # Token fallback: --token > $SLOPASK_TOKEN
     if not args.token:
-        args.token = os.environ.get("SLOPASK_TOKEN") or os.environ.get("SLOPASK_WSD_TOKEN", "")
+        args.token = os.environ.get("SLOPASK_TOKEN", "")
     if not args.token:
-        parser.error("no admin token: use --token or set SLOPASK_TOKEN / SLOPASK_WSD_TOKEN in .env")
+        parser.error("no admin token: use --token or put SLOPASK_TOKEN in slopask/.env")
+    if not args.api_url:
+        args.api_url = os.environ.get("SLOPASK_API_URL", DEFAULT_API_URL)
     if args.command == "generate":
         cmd_generate(args)
     elif args.command == "upload":
