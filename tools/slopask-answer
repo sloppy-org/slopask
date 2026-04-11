@@ -157,24 +157,40 @@ def generate_answer_content(question_md, course_config):
     language = course_config.get("language", "de")
     lang_name = "German" if language == "de" else "English"
 
-    prompt = f"""Answer a student question for the course "{course_name}". Produce exactly TWO slides.
+    prompt = f"""Answer a student question for the course "{course_name}". Produce exactly TWO Beamer slides.
 
 Question: {question_md}
 
 Output valid JSON with these fields:
 - "answer_text": A complete markdown answer (3-5 sentences) with substance. Use LaTeX for formulas. Include references if applicable.
-- "slide_latex": Beamer LaTeX for exactly TWO frames:
-  Frame 1 — "Frage": Restate the question neutrally ("Die Frage lautete: ..."), then discuss what the question is really asking, what concepts are involved, why it is a good question. Use \\pause between items.
-  Frame 2 — "Antwort": Give a thorough answer with formulas, illustrations (TikZ if helpful), and a literature reference or source if applicable. Use \\pause between items.
-  Use \\autonote{{[tag] text}} for TTS speaker notes after each content element (tags: trivial, simple, moderate, complex). Notes must be TTS-ready: proper {lang_name} punctuation, formulas as spoken words, UTF-8 umlauts (not ae/oe/ue), complete natural sentences.
+- "slide_latex": Beamer LaTeX for exactly TWO \\begin{{frame}}...\\end{{frame}} blocks:
+
+  Frame 1 — Restate and discuss the question:
+  - Title should contain the question topic
+  - Open with "Die Frage lautete: ..." (neutral, never "eine Studentin hat gefragt")
+  - Discuss what concepts are involved and what the question is really about
+  - DO NOT call it a good/interesting/important question. Just state and discuss it.
+  - Prefer TikZ illustrations and diagrams over bullet-point text
+  - Keep text minimal — use visuals to explain
+
+  Frame 2 — Give a thorough answer:
+  - Concrete, specific, with formulas and/or TikZ illustrations
+  - Include a literature reference (author, journal/book, year)
+  - Prefer graphical explanation (TikZ diagrams, plots, sketches) over walls of text
+  - Keep bullet text SHORT — one line per item max
+
+  Both frames: Use \\pause between content blocks. After each \\pause, place \\autonote{{[tag] text}} with TTS-ready speaker notes.
+  IMPORTANT: Use \\autonote{{}} (not bare \\note{{}}) for ALL notes, including the first one on each frame. This ensures correct overlay numbering.
+  Tags: trivial, simple, moderate, complex. Notes: proper {lang_name}, formulas as spoken words, UTF-8 umlauts, complete sentences.
+
 - "livecode": null (or Python LiveDemo script only if the question is explicitly about programming)
 
 Rules:
-- {lang_name} language matching the question.
-- NEVER say "eine Studentin hat gefragt" or similar. Always neutral: "Die Frage lautete" or "Es wurde gefragt".
-- The answer should have real substance and depth, not be superficial.
-- Include a literature reference or textbook pointer where appropriate.
-- Do NOT use \\begin{{frame}}[fragile] unless absolutely needed for lstlisting.
+- {lang_name} language.
+- Neutral tone. No flattery about the question.
+- Real substance and depth in the answer.
+- Prefer TikZ illustrations over text wherever possible.
+- Do NOT use \\begin{{frame}}[fragile] unless needed for lstlisting.
 
 Output ONLY valid JSON, no markdown fences."""
 
