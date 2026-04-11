@@ -1,0 +1,365 @@
+#!/usr/bin/env python3
+"""slopask-answer — generate and upload slopcast answer clips for slopask questions.
+
+Usage:
+    slopask-answer generate <admin-token> <qid> [--api-url URL] [--course-dir DIR] [--workdir DIR]
+    slopask-answer upload <admin-token> <qid> [--api-url URL] [--workdir DIR]
+"""
+import argparse
+import base64
+import json
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+import requests
+import yaml
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+SLOPCAST_DIR = Path(os.environ.get("SLOPCAST_DIR", Path.home() / "code" / "sloppy" / "slopcast"))
+TEMPLATE_TEX = SCRIPT_DIR / "answer_template.tex"
+DEFAULT_API_URL = "https://ask.sloppy.at"
+
+
+def load_course_config(course_dir):
+    p = Path(course_dir) / "course.yaml"
+    if p.exists():
+        with open(p) as f:
+            return yaml.safe_load(f)
+    return {}
+
+
+def fetch_question(api_url, token, qid):
+    r = requests.get(f"{api_url}/api/v0/rooms/{token}/questions/{qid}")
+    r.raise_for_status()
+    return r.json()
+
+
+def download_media(api_url, media_list, dest_dir):
+    dest_dir = Path(dest_dir)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    paths = []
+    for m in (media_list or []):
+        url = api_url + m["url"]
+        local = dest_dir / m["filename"]
+        resp = requests.get(url)
+        resp.raise_for_status()
+        local.write_bytes(resp.content)
+        paths.append({"path": str(local), "kind": m["kind"], "mime_type": m["mime_type"], "filename": m["filename"]})
+    return paths
+
+
+def transcribe_question(question, media_paths, course_config):
+    """Use Claude API to produce a markdown transcription of the question."""
+    import anthropic
+
+    client = anthropic.Anthropic()
+    content = []
+
+    # Add text body if present.
+    if question.get("body", "").strip():
+        content.append({"type": "text", "text": f"Question text:\n{question['body']}"})
+
+    # Add media.
+    for m in media_paths:
+        kind = m["kind"]
+        if kind == "image":
+            with open(m["path"], "rb") as f:
+                data = base64.standard_b64encode(f.read()).decode()
+            content.append({"type": "image", "source": {"type": "base64", "media_type": m["mime_type"], "data": data}})
+        elif kind == "audio":
+            with open(m["path"], "rb") as f:
+                data = base64.standard_b64encode(f.read()).decode()
+            content.append({"type": "text", "text": f"[Audio file: {m['filename']}]"})
+            # TODO: actual audio transcription via Whisper or similar
+        elif kind == "video":
+            content.append({"type": "text", "text": f"[Video file: {m['filename']}]"})
+            # TODO: extract keyframes + audio transcription
+
+    if not content:
+        return question.get("body", "")
+
+    content.append({"type": "text", "text": (
+        "Transcribe the above question into clean markdown. "
+        "Include any formulas as LaTeX ($...$ or $$...$$). "
+        "Describe images concisely. "
+        "Keep the language of the original question. "
+        "Output ONLY the markdown transcription, no explanation."
+    )})
+
+    resp = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=2000,
+        messages=[{"role": "user", "content": content}],
+    )
+    return resp.content[0].text
+
+
+def generate_answer_content(question_md, course_config):
+    """Use Claude API to generate answer text + Beamer slide LaTeX + speaker notes."""
+    import anthropic
+
+    client = anthropic.Anthropic()
+    course_name = course_config.get("course_name", "")
+    language = course_config.get("language", "de")
+
+    prompt = f"""You are answering a student question for the course "{course_name}".
+
+Question:
+{question_md}
+
+Generate a structured answer. Output valid JSON with these fields:
+- "answer_text": A brief, complete markdown answer (2-5 sentences). Use LaTeX for formulas.
+- "slide_latex": Beamer LaTeX for 1-3 frames. Start with the question (paraphrased), then the answer with formulas/illustrations. Use \\pause between content blocks. Use \\autonote{{[tag] text}} for speaker notes (tags: trivial, simple, moderate, complex). Notes must be TTS-ready (proper {language} punctuation, formulas spoken as words, UTF-8 umlauts).
+- "livecode": null, or a Python LiveDemo script (using the LiveDemo class from slopcast) if a code example helps. Only if the question is about programming.
+
+Rules:
+- Answer in {'German' if language == 'de' else 'English'} (matching the question language).
+- Be concise but complete.
+- The slide should work as a standalone mini-lecture: question, explanation, conclusion.
+- Speaker notes are for TTS narration — write complete, natural sentences.
+- Do NOT use \\begin{{frame}} with fragile option unless using lstlisting.
+- Each frame needs a short title.
+
+Output ONLY the JSON object, no markdown fences, no explanation."""
+
+    resp = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=4000,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = resp.content[0].text.strip()
+    # Strip markdown fences if present.
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1]
+        if text.endswith("```"):
+            text = text[:-3]
+    return json.loads(text)
+
+
+def build_beamer_pdf(slide_latex, workdir):
+    template = TEMPLATE_TEX.read_text()
+    tex = template.replace("%%SLIDES%%", slide_latex)
+    tex_path = workdir / "slide.tex"
+    tex_path.write_text(tex)
+    result = subprocess.run(
+        ["latexmk", "-pdf", "-interaction=nonstopmode", "-halt-on-error", "slide.tex"],
+        cwd=workdir, capture_output=True, text=True,
+    )
+    pdf_path = workdir / "slide.pdf"
+    if not pdf_path.exists():
+        print("LaTeX compilation failed:", file=sys.stderr)
+        print(result.stdout[-2000:] if len(result.stdout) > 2000 else result.stdout, file=sys.stderr)
+        print(result.stderr[-1000:] if len(result.stderr) > 1000 else result.stderr, file=sys.stderr)
+        sys.exit(1)
+    return pdf_path
+
+
+def write_segments_json(slide_latex, workdir):
+    """Extract segments from the Beamer PDF using slopcast tools."""
+    pdf_path = workdir / "slide.pdf"
+    segments_path = workdir / "segments.json"
+    extract_script = SLOPCAST_DIR / "tools" / "extract_pdfpc_notes.py"
+    result = subprocess.run(
+        [sys.executable, str(extract_script), str(pdf_path), "-o", str(segments_path)],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        print("extract_pdfpc_notes failed:", file=sys.stderr)
+        print(result.stderr, file=sys.stderr)
+        sys.exit(1)
+    return segments_path
+
+
+def generate_slopcast_clip(workdir, voice_wav):
+    """Run the slopcast pipeline to produce answer.mp4."""
+    segments_path = workdir / "segments.json"
+    audio_dir = workdir / "audio"
+    audio_dir.mkdir(exist_ok=True)
+
+    # Generate audio.
+    gen_audio = SLOPCAST_DIR / "tools" / "generate_audio_qwen3tts.py"
+    result = subprocess.run(
+        [sys.executable, str(gen_audio), str(segments_path),
+         "--ref", str(voice_wav), "-o", str(audio_dir)],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        print("generate_audio failed:", file=sys.stderr)
+        print(result.stderr[-2000:], file=sys.stderr)
+        sys.exit(1)
+
+    # Render clips.
+    pdf_path = workdir / "slide.pdf"
+    clips_dir = workdir / "clips"
+    clips_dir.mkdir(exist_ok=True)
+    render = SLOPCAST_DIR / "tools" / "render_narrated_slides.py"
+    result = subprocess.run(
+        [sys.executable, str(render), str(pdf_path), str(audio_dir),
+         "--segments", str(segments_path), "-o", str(clips_dir)],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        print("render_narrated_slides failed:", file=sys.stderr)
+        print(result.stderr[-2000:], file=sys.stderr)
+        sys.exit(1)
+
+    # Merge clips.
+    clips_json = clips_dir / "clips.json"
+    output_mp4 = workdir / "answer.mp4"
+    merge = SLOPCAST_DIR / "tools" / "merge_clips.py"
+    result = subprocess.run(
+        [sys.executable, str(merge), str(clips_json), "-o", str(output_mp4)],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        print("merge_clips failed:", file=sys.stderr)
+        print(result.stderr[-2000:], file=sys.stderr)
+        sys.exit(1)
+
+    return output_mp4
+
+
+def update_question_body(api_url, token, qid, body):
+    r = requests.put(
+        f"{api_url}/admin/{token}/questions/{qid}",
+        json={"body": body},
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+def upload_answer(api_url, token, qid, body_text, video_path):
+    files = {}
+    if video_path and Path(video_path).exists():
+        files["media"] = ("answer.mp4", open(video_path, "rb"), "video/mp4")
+    data = {"body": body_text}
+    r = requests.post(
+        f"{api_url}/admin/{token}/questions/{qid}/answer",
+        data=data, files=files,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+def cmd_generate(args):
+    config = load_course_config(args.course_dir)
+
+    # Resolve voice reference.
+    voice_ref = None
+    vr = config.get("voice_reference", {})
+    if vr.get("wav"):
+        voice_ref = Path(args.course_dir) / vr["wav"]
+        if not voice_ref.exists():
+            print(f"Voice reference not found: {voice_ref}", file=sys.stderr)
+            sys.exit(1)
+
+    # Workdir.
+    workdir = Path(args.workdir) if args.workdir else Path(tempfile.mkdtemp(prefix=f"slopask_q{args.qid}_"))
+    workdir.mkdir(parents=True, exist_ok=True)
+    print(f"workdir: {workdir}")
+
+    # 1. Fetch question.
+    print("fetching question...")
+    question = fetch_question(args.api_url, args.token, args.qid)
+    (workdir / "question.json").write_text(json.dumps(question, indent=2))
+
+    # 2. Download media.
+    media_paths = []
+    if question.get("media"):
+        print(f"downloading {len(question['media'])} media files...")
+        media_paths = download_media(args.api_url, question["media"], workdir / "question_media")
+
+    # 3. Transcribe to markdown (if multimodal).
+    question_md = question.get("body", "").strip()
+    if media_paths or not question_md:
+        print("transcribing question to markdown...")
+        question_md = transcribe_question(question, media_paths, config)
+        (workdir / "question_md.txt").write_text(question_md)
+        # Update question body on server.
+        print("updating question body on server...")
+        update_question_body(args.api_url, args.token, args.qid, question_md)
+
+    # 4. Generate answer content.
+    print("generating answer content...")
+    answer = generate_answer_content(question_md, config)
+    (workdir / "answer_content.json").write_text(json.dumps(answer, indent=2))
+    (workdir / "answer_text.md").write_text(answer["answer_text"])
+
+    # 5. Build Beamer PDF.
+    print("building Beamer PDF...")
+    build_beamer_pdf(answer["slide_latex"], workdir)
+
+    # 6. Write livecode if present.
+    if answer.get("livecode"):
+        livecode_dir = workdir / "livecode"
+        livecode_dir.mkdir(exist_ok=True)
+        (livecode_dir / "demo.py").write_text(answer["livecode"])
+
+    # 7. Extract segments from PDF.
+    print("extracting segments...")
+    write_segments_json(answer["slide_latex"], workdir)
+
+    # 8. Generate slopcast clip (if voice reference available).
+    if voice_ref:
+        print("generating slopcast clip...")
+        mp4 = generate_slopcast_clip(workdir, voice_ref)
+        print(f"video: {mp4}")
+    else:
+        print("no voice reference configured — skipping video generation")
+
+    print()
+    print(f"=== generated answer for question #{args.qid} ===")
+    print(f"text:  {workdir / 'answer_text.md'}")
+    print(f"slide: {workdir / 'slide.pdf'}")
+    if voice_ref:
+        print(f"video: {workdir / 'answer.mp4'}")
+    print()
+    print("review, then run:")
+    print(f"  slopask-answer upload {args.token} {args.qid} --workdir {workdir}")
+
+
+def cmd_upload(args):
+    workdir = Path(args.workdir) if args.workdir else None
+    if not workdir or not workdir.exists():
+        print("workdir not found — run generate first", file=sys.stderr)
+        sys.exit(1)
+
+    answer_text = (workdir / "answer_text.md").read_text()
+    video_path = workdir / "answer.mp4"
+    if not video_path.exists():
+        video_path = None
+
+    print(f"uploading answer for question #{args.qid}...")
+    result = upload_answer(args.api_url, args.token, args.qid, answer_text, video_path)
+    print(f"answer v{result.get('version', '?')} uploaded")
+    print(f"view: {args.api_url}/admin/{args.token}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="slopask answer pipeline")
+    parser.add_argument("--api-url", default=os.environ.get("SLOPASK_API_URL", DEFAULT_API_URL))
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    gen = sub.add_parser("generate", help="Generate answer for a question")
+    gen.add_argument("token", help="Room admin token")
+    gen.add_argument("qid", type=int, help="Question ID")
+    gen.add_argument("--course-dir", default=".", help="Course directory with course.yaml")
+    gen.add_argument("--workdir", help="Working directory (default: auto-created temp dir)")
+
+    up = sub.add_parser("upload", help="Upload generated answer")
+    up.add_argument("token", help="Room admin token")
+    up.add_argument("qid", type=int, help="Question ID")
+    up.add_argument("--workdir", required=True, help="Working directory from generate step")
+
+    args = parser.parse_args()
+    if args.command == "generate":
+        cmd_generate(args)
+    elif args.command == "upload":
+        cmd_upload(args)
+
+
+if __name__ == "__main__":
+    main()

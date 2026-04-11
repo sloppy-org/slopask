@@ -1,0 +1,30 @@
+\documentclass[aspectratio=169,14pt]{beamer}
+\usetheme{default}
+\usecolortheme{default}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}{}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage[overridenote,disablemarkdown]{pdfpc}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  language=Python,
+  showstringspaces=false,
+}
+
+\makeatletter
+\newcommand{\autonote}[1]{%
+  \edef\@autonote@ov{\the\value{beamerpauses}}%
+  \expandafter\note\expandafter<\@autonote@ov>{#1}%
+}
+\makeatother
+
+\begin{document}
+%%SLIDES%%
+\end{document}
