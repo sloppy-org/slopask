@@ -2,16 +2,14 @@
 """slopask-answer — generate and upload slopcast answer clips for slopask questions.
 
 Usage:
-    slopask-answer generate <admin-token> <qid> [--api-url URL] [--course-dir DIR] [--workdir DIR]
-    slopask-answer upload <admin-token> <qid> [--api-url URL] [--workdir DIR]
+    slopask-answer generate <qid> [--course-dir DIR] [--workdir DIR]
+    slopask-answer upload <qid> --workdir DIR
 """
 import argparse
-import base64
 import json
 import os
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 import requests
@@ -22,10 +20,10 @@ REPO_DIR = SCRIPT_DIR.parent
 SLOPCAST_DIR = Path(os.environ.get("SLOPCAST_DIR", Path.home() / "code" / "sloppy" / "slopcast"))
 TEMPLATE_TEX = SCRIPT_DIR / "answer_template.tex"
 DEFAULT_API_URL = "https://ask.sloppy.at"
+STT_URL = os.environ.get("SLOPASK_STT_URL", "http://127.0.0.1:8427")
 
 
 def load_dotenv_file(path):
-    """Load a single .env file, setting defaults (won't override existing)."""
     if not Path(path).exists():
         return
     for line in Path(path).read_text().splitlines():
@@ -37,7 +35,6 @@ def load_dotenv_file(path):
 
 
 def load_dotenv(course_dir="."):
-    """Load .env from course slopask dir, then repo root."""
     load_dotenv_file(Path(course_dir) / "slopask" / ".env")
     load_dotenv_file(REPO_DIR / ".env")
 
@@ -48,6 +45,19 @@ def load_course_config(course_dir):
         with open(p) as f:
             return yaml.safe_load(f)
     return {}
+
+
+def claude_cli(prompt, files=None):
+    """Run claude CLI and return stdout text. No API key needed."""
+    cmd = ["claude", "-p", prompt, "--output-format", "text"]
+    if files:
+        cmd.extend(str(f) for f in files)
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    if result.returncode != 0:
+        print(f"claude CLI failed (exit {result.returncode}):", file=sys.stderr)
+        print(result.stderr[:2000], file=sys.stderr)
+        sys.exit(1)
+    return result.stdout.strip()
 
 
 def fetch_question(api_url, token, qid):
@@ -66,63 +76,85 @@ def download_media(api_url, media_list, dest_dir):
         resp = requests.get(url)
         resp.raise_for_status()
         local.write_bytes(resp.content)
-        paths.append({"path": str(local), "kind": m["kind"], "mime_type": m["mime_type"], "filename": m["filename"]})
+        paths.append({"path": str(local), "kind": m["kind"],
+                       "mime_type": m["mime_type"], "filename": m["filename"]})
     return paths
 
 
+def extract_audio(video_path, out_wav):
+    """Extract audio track from video file via ffmpeg."""
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", str(video_path), "-vn", "-acodec", "pcm_s16le",
+         "-ar", "16000", "-ac", "1", str(out_wav)],
+        capture_output=True, check=True,
+    )
+    return out_wav
+
+
+def transcribe_audio(audio_path):
+    """Transcribe audio via voxtype STT (OpenAI-compatible API on port 8427)."""
+    with open(audio_path, "rb") as f:
+        resp = requests.post(
+            f"{STT_URL}/v1/audio/transcriptions",
+            files={"file": (Path(audio_path).name, f)},
+            data={"model": "whisper", "language": "de"},
+            timeout=120,
+        )
+    resp.raise_for_status()
+    return resp.json().get("text", "").strip()
+
+
 def transcribe_question(question, media_paths, course_config):
-    """Use Claude API to produce a markdown transcription of the question."""
-    import anthropic
+    """Produce a markdown transcription of the question using STT + claude CLI."""
+    body = question.get("body", "").strip()
+    if not media_paths and body:
+        return body
 
-    client = anthropic.Anthropic()
-    content = []
+    parts = []
+    if body:
+        parts.append(body)
 
-    # Add text body if present.
-    if question.get("body", "").strip():
-        content.append({"type": "text", "text": f"Question text:\n{question['body']}"})
-
-    # Add media.
+    image_files = []
     for m in media_paths:
         kind = m["kind"]
         if kind == "image":
-            with open(m["path"], "rb") as f:
-                data = base64.standard_b64encode(f.read()).decode()
-            content.append({"type": "image", "source": {"type": "base64", "media_type": m["mime_type"], "data": data}})
+            image_files.append(m["path"])
         elif kind == "audio":
-            with open(m["path"], "rb") as f:
-                data = base64.standard_b64encode(f.read()).decode()
-            content.append({"type": "text", "text": f"[Audio file: {m['filename']}]"})
-            # TODO: actual audio transcription via Whisper or similar
+            print(f"  transcribing audio: {m['filename']}...")
+            text = transcribe_audio(m["path"])
+            if text:
+                parts.append(f"[Audio transcript]: {text}")
         elif kind == "video":
-            content.append({"type": "text", "text": f"[Video file: {m['filename']}]"})
-            # TODO: extract keyframes + audio transcription
+            print(f"  extracting audio from video: {m['filename']}...")
+            wav_path = Path(m["path"]).with_suffix(".wav")
+            extract_audio(m["path"], wav_path)
+            print(f"  transcribing video audio...")
+            text = transcribe_audio(str(wav_path))
+            if text:
+                parts.append(f"[Video transcript]: {text}")
 
-    if not content:
-        return question.get("body", "")
+    if image_files:
+        prompt = "\n\n".join(parts) if parts else ""
+        prompt += "\n\nDescribe the attached image(s) concisely and combine with the text above into clean markdown. " \
+                  "Include formulas as LaTeX. Keep the original language. Output ONLY the markdown."
+        return claude_cli(prompt, files=image_files)
 
-    content.append({"type": "text", "text": (
-        "Transcribe the above question into clean markdown. "
-        "Include any formulas as LaTeX ($...$ or $$...$$). "
-        "Describe images concisely. "
-        "Keep the language of the original question. "
-        "Output ONLY the markdown transcription, no explanation."
-    )})
+    if parts:
+        # If we only have text+transcripts, combine into markdown via claude CLI.
+        combined = "\n\n".join(parts)
+        prompt = f"Clean up and combine the following into a single markdown question. " \
+                 f"Include formulas as LaTeX ($...$). Keep the original language. " \
+                 f"Output ONLY the markdown, no explanation.\n\n{combined}"
+        return claude_cli(prompt)
 
-    resp = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=2000,
-        messages=[{"role": "user", "content": content}],
-    )
-    return resp.content[0].text
+    return body
 
 
 def generate_answer_content(question_md, course_config):
-    """Use Claude API to generate answer text + Beamer slide LaTeX + speaker notes."""
-    import anthropic
-
-    client = anthropic.Anthropic()
+    """Use claude CLI to generate answer text + Beamer slide LaTeX + speaker notes."""
     course_name = course_config.get("course_name", "")
     language = course_config.get("language", "de")
+    lang_name = "German" if language == "de" else "English"
 
     prompt = f"""You are answering a student question for the course "{course_name}".
 
@@ -131,11 +163,11 @@ Question:
 
 Generate a structured answer. Output valid JSON with these fields:
 - "answer_text": A brief, complete markdown answer (2-5 sentences). Use LaTeX for formulas.
-- "slide_latex": Beamer LaTeX for 1-3 frames. Start with the question (paraphrased), then the answer with formulas/illustrations. Use \\pause between content blocks. Use \\autonote{{[tag] text}} for speaker notes (tags: trivial, simple, moderate, complex). Notes must be TTS-ready (proper {language} punctuation, formulas spoken as words, UTF-8 umlauts).
+- "slide_latex": Beamer LaTeX for 1-3 frames. Start with the question (paraphrased), then the answer with formulas/illustrations. Use \\pause between content blocks. Use \\autonote{{[tag] text}} for speaker notes (tags: trivial, simple, moderate, complex). Notes must be TTS-ready (proper {lang_name} punctuation, formulas spoken as words, UTF-8 umlauts).
 - "livecode": null, or a Python LiveDemo script (using the LiveDemo class from slopcast) if a code example helps. Only if the question is about programming.
 
 Rules:
-- Answer in {'German' if language == 'de' else 'English'} (matching the question language).
+- Answer in {lang_name} (matching the question language).
 - Be concise but complete.
 - The slide should work as a standalone mini-lecture: question, explanation, conclusion.
 - Speaker notes are for TTS narration — write complete, natural sentences.
@@ -144,18 +176,39 @@ Rules:
 
 Output ONLY the JSON object, no markdown fences, no explanation."""
 
-    resp = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=4000,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    text = resp.content[0].text.strip()
+    text = claude_cli(prompt)
     # Strip markdown fences if present.
-    if text.startswith("```"):
-        text = text.split("\n", 1)[1]
-        if text.endswith("```"):
-            text = text[:-3]
-    return json.loads(text)
+    if "```" in text:
+        # Find the JSON between fences or after the first fence.
+        lines = text.split("\n")
+        inside = False
+        json_lines = []
+        for line in lines:
+            if line.strip().startswith("```"):
+                if inside:
+                    break
+                inside = True
+                continue
+            if inside:
+                json_lines.append(line)
+        if json_lines:
+            text = "\n".join(json_lines)
+    # Find the JSON object in the text.
+    start = text.find("{")
+    end = text.rfind("}") + 1
+    if start >= 0 and end > start:
+        text = text[start:end]
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        # Retry: ask claude to fix the JSON.
+        fix_prompt = f"Fix this broken JSON so it parses correctly. Output ONLY the valid JSON, nothing else:\n\n{text}"
+        fixed = claude_cli(fix_prompt)
+        start = fixed.find("{")
+        end = fixed.rfind("}") + 1
+        if start >= 0 and end > start:
+            fixed = fixed[start:end]
+        return json.loads(fixed)
 
 
 def build_beamer_pdf(slide_latex, workdir):
@@ -176,7 +229,7 @@ def build_beamer_pdf(slide_latex, workdir):
     return pdf_path
 
 
-def write_segments_json(slide_latex, workdir):
+def write_segments_json(workdir):
     """Extract segments from the Beamer PDF using slopcast tools."""
     pdf_path = workdir / "slide.pdf"
     segments_path = workdir / "segments.json"
@@ -198,7 +251,6 @@ def generate_slopcast_clip(workdir, voice_wav):
     audio_dir = workdir / "audio"
     audio_dir.mkdir(exist_ok=True)
 
-    # Generate audio.
     gen_audio = SLOPCAST_DIR / "tools" / "generate_audio_qwen3tts.py"
     result = subprocess.run(
         [sys.executable, str(gen_audio), str(segments_path),
@@ -210,7 +262,6 @@ def generate_slopcast_clip(workdir, voice_wav):
         print(result.stderr[-2000:], file=sys.stderr)
         sys.exit(1)
 
-    # Render clips.
     pdf_path = workdir / "slide.pdf"
     clips_dir = workdir / "clips"
     clips_dir.mkdir(exist_ok=True)
@@ -225,7 +276,6 @@ def generate_slopcast_clip(workdir, voice_wav):
         print(result.stderr[-2000:], file=sys.stderr)
         sys.exit(1)
 
-    # Merge clips.
     clips_json = clips_dir / "clips.json"
     output_mp4 = workdir / "answer.mp4"
     merge = SLOPCAST_DIR / "tools" / "merge_clips.py"
@@ -294,15 +344,14 @@ def cmd_generate(args):
     # 3. Transcribe to markdown (if multimodal).
     question_md = question.get("body", "").strip()
     if media_paths or not question_md:
-        print("transcribing question to markdown...")
+        print("transcribing question to markdown (claude CLI)...")
         question_md = transcribe_question(question, media_paths, config)
         (workdir / "question_md.txt").write_text(question_md)
-        # Update question body on server.
         print("updating question body on server...")
         update_question_body(args.api_url, args.token, args.qid, question_md)
 
     # 4. Generate answer content.
-    print("generating answer content...")
+    print("generating answer content (claude CLI)...")
     answer = generate_answer_content(question_md, config)
     (workdir / "answer_content.json").write_text(json.dumps(answer, indent=2))
     (workdir / "answer_text.md").write_text(answer["answer_text"])
@@ -319,7 +368,7 @@ def cmd_generate(args):
 
     # 7. Extract segments from PDF.
     print("extracting segments...")
-    write_segments_json(answer["slide_latex"], workdir)
+    write_segments_json(workdir)
 
     # 8. Generate slopcast clip (if voice reference available).
     if voice_ref:
@@ -337,7 +386,7 @@ def cmd_generate(args):
         print(f"video: {workdir / 'answer.mp4'}")
     print()
     print("review, then run:")
-    print(f"  slopask-answer upload {args.token} {args.qid} --workdir {workdir}")
+    print(f"  slopask-answer upload {args.qid} --workdir {workdir}")
 
 
 def cmd_upload(args):
@@ -364,19 +413,18 @@ def main():
 
     gen = sub.add_parser("generate", help="Generate answer for a question")
     gen.add_argument("qid", type=int, help="Question ID")
-    gen.add_argument("--token", default=os.environ.get("SLOPASK_TOKEN", ""), help="Room admin token (default: $SLOPASK_TOKEN or $SLOPASK_WSD_TOKEN)")
+    gen.add_argument("--token", default="", help="Room admin token (default: from slopask/.env)")
     gen.add_argument("--course-dir", default=".", help="Course directory with course.yaml")
-    gen.add_argument("--workdir", help="Working directory (default: auto-created temp dir)")
+    gen.add_argument("--workdir", help="Working directory (default: slopask/q<qid>/)")
 
     up = sub.add_parser("upload", help="Upload generated answer")
     up.add_argument("qid", type=int, help="Question ID")
-    up.add_argument("--token", default=os.environ.get("SLOPASK_TOKEN", ""), help="Room admin token (default: $SLOPASK_TOKEN or $SLOPASK_WSD_TOKEN)")
+    up.add_argument("--token", default="", help="Room admin token (default: from slopask/.env)")
     up.add_argument("--workdir", required=True, help="Working directory from generate step")
 
     args = parser.parse_args()
     course_dir = getattr(args, "course_dir", ".")
     load_dotenv(course_dir)
-    # Token fallback: --token > $SLOPASK_TOKEN
     if not args.token:
         args.token = os.environ.get("SLOPASK_TOKEN", "")
     if not args.token:
