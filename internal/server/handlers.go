@@ -266,6 +266,51 @@ func (s *Server) handleStudentSSE(w http.ResponseWriter, r *http.Request) {
 
 // Admin handlers.
 
+func (s *Server) handleAdminCreateQuestion(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+	room, err := s.store.GetRoomByAdminToken(token)
+	if errors.Is(err, store.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+
+	if err := r.ParseMultipartForm(maxVideoSize + (1 << 20)); err != nil {
+		http.Error(w, "invalid multipart form", http.StatusBadRequest)
+		return
+	}
+
+	body := r.FormValue("body")
+	voterID := r.FormValue("voter_id")
+	mediaFiles := r.MultipartForm.File["media"]
+	if body == "" && len(mediaFiles) == 0 {
+		http.Error(w, "body or media is required", http.StatusBadRequest)
+		return
+	}
+
+	q, err := s.store.CreateQuestion(room.ID, body, voterID)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+
+	for _, fh := range mediaFiles {
+		m, saveErr := s.saveUpload(fh, room.ID, "question", q.ID)
+		if saveErr != nil {
+			log.Printf("upload error: %v", saveErr)
+			continue
+		}
+		q.Media = append(q.Media, *m)
+	}
+
+	data, _ := json.Marshal(q)
+	s.broker.publish(room.ID, "question_new", string(data))
+	writeJSON(w, http.StatusCreated, q)
+}
+
 func (s *Server) handleAdminListQuestions(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
 	room, err := s.store.GetRoomByAdminToken(token)

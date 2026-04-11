@@ -78,6 +78,7 @@ func (s *Server) routes() chi.Router {
 	r.Route("/admin/{token}", func(r chi.Router) {
 		r.Get("/", s.handleAdmin)
 		r.Get("/questions", s.handleAdminListQuestions)
+		r.Post("/questions", s.handleAdminCreateQuestion)
 		r.Put("/questions/{qid}", s.handleUpdateQuestion)
 		r.Post("/questions/{qid}/answer", s.handleCreateAnswer)
 		r.Put("/answers/{aid}", s.handleUpdateAnswer)
