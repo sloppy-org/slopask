@@ -157,25 +157,18 @@ def generate_answer_content(question_md, course_config):
     language = course_config.get("language", "de")
     lang_name = "German" if language == "de" else "English"
 
-    prompt = f"""You are answering a student question for the course "{course_name}".
+    prompt = f"""Answer a student question for "{course_name}". Be SHORT — aim for ONE slide, max 30 seconds of narration.
 
-Question:
-{question_md}
+Question: {question_md}
 
-Generate a structured answer. Output valid JSON with these fields:
-- "answer_text": A brief, complete markdown answer (2-5 sentences). Use LaTeX for formulas.
-- "slide_latex": Beamer LaTeX for 1-3 frames. Start with the question (paraphrased), then the answer with formulas/illustrations. Use \\pause between content blocks. Use \\autonote{{[tag] text}} for speaker notes (tags: trivial, simple, moderate, complex). Notes must be TTS-ready (proper {lang_name} punctuation, formulas spoken as words, UTF-8 umlauts).
-- "livecode": null, or a Python LiveDemo script (using the LiveDemo class from slopcast) if a code example helps. Only if the question is about programming.
+Output valid JSON:
+- "answer_text": 1-2 sentence markdown answer. Use LaTeX for formulas.
+- "slide_latex": Beamer LaTeX for exactly ONE \\begin{{frame}}...\\end{{frame}}. Start with the question (paraphrased in the title), then a concise answer with key formula or illustration. Use \\pause between items. Use \\autonote{{[tag] text}} for short TTS speaker notes (tags: trivial, simple, moderate, complex). Notes: proper {lang_name}, formulas as spoken words, UTF-8 umlauts, complete sentences, max 2 sentences per note.
+- "livecode": null (or Python LiveDemo script only if question is explicitly about code)
 
-Rules:
-- Answer in {lang_name} (matching the question language).
-- Be concise but complete.
-- The slide should work as a standalone mini-lecture: question, explanation, conclusion.
-- Speaker notes are for TTS narration — write complete, natural sentences.
-- Do NOT use \\begin{{frame}} with fragile option unless using lstlisting.
-- Each frame needs a short title.
+Rules: {lang_name} language. No \\begin{{frame}}[fragile]. Frame needs a short title. Keep it minimal — one clear answer, not a mini-lecture.
 
-Output ONLY the JSON object, no markdown fences, no explanation."""
+Output ONLY valid JSON."""
 
     text = claude_cli(prompt)
     # Strip markdown fences if present.
@@ -212,8 +205,11 @@ Output ONLY the JSON object, no markdown fences, no explanation."""
         return json.loads(fixed)
 
 
-def build_beamer_pdf(slide_latex, workdir):
-    template = TEMPLATE_TEX.read_text()
+def build_beamer_pdf(slide_latex, workdir, course_dir):
+    # Use course-specific template if available, fall back to repo default.
+    course_template = Path(course_dir) / "slopask" / "answer_template.tex"
+    template_path = course_template if course_template.exists() else TEMPLATE_TEX
+    template = template_path.read_text()
     tex = template.replace("%%SLIDES%%", slide_latex)
     tex_path = workdir / "slide.tex"
     tex_path.write_text(tex)
@@ -246,7 +242,7 @@ def write_segments_json(workdir):
     return segments_path
 
 
-def generate_slopcast_clip(workdir, voice_wav):
+def generate_slopcast_clip(workdir, voice_wav, voice_txt=None):
     """Run TTS + render to produce answer.mp4."""
     segments_path = workdir / "segments.json"
     audio_dir = workdir / "audio"
@@ -257,11 +253,11 @@ def generate_slopcast_clip(workdir, voice_wav):
     # 1. Generate audio via Qwen3-TTS (uses slopcast venv).
     gen_audio = SLOPCAST_DIR / "tools" / "generate_audio_qwen3tts.py"
     print("  TTS audio generation...")
-    result = subprocess.run(
-        [TTS_PYTHON, str(gen_audio), str(segments_path),
-         "--ref", str(voice_wav), "-o", str(audio_dir)],
-        capture_output=True, text=True,
-    )
+    tts_cmd = [TTS_PYTHON, str(gen_audio), str(segments_path),
+               "--ref", str(voice_wav), "-o", str(audio_dir)]
+    if voice_txt and Path(voice_txt).exists():
+        tts_cmd.extend(["--ref-text", Path(voice_txt).read_text().strip()])
+    result = subprocess.run(tts_cmd, capture_output=True, text=True)
     if result.returncode != 0:
         print("generate_audio failed:", file=sys.stderr)
         print(result.stderr[-2000:], file=sys.stderr)
@@ -403,7 +399,7 @@ def cmd_generate(args):
 
     # 5. Build Beamer PDF.
     print("building Beamer PDF...")
-    build_beamer_pdf(answer["slide_latex"], workdir)
+    build_beamer_pdf(answer["slide_latex"], workdir, args.course_dir)
 
     # 6. Write livecode if present.
     if answer.get("livecode"):
@@ -416,9 +412,13 @@ def cmd_generate(args):
     write_segments_json(workdir)
 
     # 8. Generate slopcast clip (if voice reference available).
+    voice_txt = None
+    vr = config.get("voice_reference", {})
+    if vr.get("txt"):
+        voice_txt = str(Path(args.course_dir) / vr["txt"])
     if voice_ref:
         print("generating slopcast clip...")
-        mp4 = generate_slopcast_clip(workdir, voice_ref)
+        mp4 = generate_slopcast_clip(workdir, voice_ref, voice_txt=voice_txt)
         print(f"video: {mp4}")
     else:
         print("no voice reference configured — skipping video generation")
