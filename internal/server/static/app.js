@@ -136,6 +136,7 @@ function renderMd(text) {
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     .replace(/~~(.+?)~~/g, '<del>$1</del>')
+    .replace(/--/g, '\u2014')
     .replace(/`(.+?)`/g, '<code>$1</code>')
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
     .replace(/(^|[\s(])((https?:\/\/)[^\s<)]+)/gm, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
@@ -224,10 +225,10 @@ function renderQuestions() {
     var v = votedSet.has(q.id);
 
     var adminBtns = '';
-    if (isAdmin) {
+    var canEdit = isAdmin || myQuestions.has(q.id);
+    if (canEdit) {
+      adminBtns += '<button class="q-edit" data-id="' + q.id + '">edit</button>';
       adminBtns += '<button class="q-delete" data-id="' + q.id + '">delete</button>';
-    } else if (myQuestions.has(q.id)) {
-      adminBtns += '<button class="q-delete q-self-delete" data-id="' + q.id + '">delete</button>';
     }
 
     var answerForm = '';
@@ -344,6 +345,48 @@ document.getElementById('questions').addEventListener('click', function(e) {
         renderQuestions();
       });
     }
+    return;
+  }
+
+  // Edit question (admin or own).
+  var editBtn = e.target.closest('.q-edit');
+  if (editBtn) {
+    var qid = parseInt(editBtn.dataset.id);
+    var q = questions.find(function(x) { return x.id === qid; });
+    if (!q) return;
+    var qEl = editBtn.closest('.q');
+    var bodyEl = qEl.querySelector('.q-body');
+    // Replace body with textarea for editing.
+    var existing = qEl.querySelector('.q-edit-area');
+    if (existing) return; // already editing
+    var ta = document.createElement('textarea');
+    ta.className = 'q-edit-area';
+    ta.value = q.body;
+    ta.style.cssText = 'width:100%;font:inherit;font-size:14px;border:1px solid #000;padding:0.4rem;min-height:3rem;resize:vertical;';
+    var saveBtn = document.createElement('button');
+    saveBtn.textContent = 'save';
+    saveBtn.style.cssText = 'background:none;border:1px solid #000;font:inherit;font-size:0.75rem;padding:0.2rem 0.5rem;margin-top:0.25rem;cursor:pointer;';
+    bodyEl.style.display = 'none';
+    bodyEl.parentNode.insertBefore(ta, bodyEl.nextSibling);
+    bodyEl.parentNode.insertBefore(saveBtn, ta.nextSibling);
+    ta.focus();
+    saveBtn.addEventListener('click', function() {
+      var newBody = ta.value.trim();
+      if (!newBody) return;
+      var url = isAdmin ? basePath + '/questions/' + qid : basePath + '/questions/' + qid;
+      fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(isAdmin ? { body: newBody } : { body: newBody, voter_id: voterID })
+      }).then(function(r) {
+        if (!r.ok) throw new Error('status ' + r.status);
+        return r.json();
+      }).then(function(updated) {
+        q.body = updated.body;
+        q.original_body = updated.original_body;
+        renderQuestions();
+      }).catch(function(err) { console.error('edit:', err); });
+    });
     return;
   }
 

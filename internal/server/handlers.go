@@ -390,6 +390,51 @@ func (s *Server) deleteQuestionFull(qid int64, roomID int64) error {
 	return nil
 }
 
+func (s *Server) handleUserEditQuestion(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+	_, err := s.store.GetRoomBySlug(slug)
+	if errors.Is(err, store.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+
+	qid, err := parseQID(r)
+	if err != nil {
+		http.Error(w, "invalid question id", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Body    string `json:"body"`
+		VoterID string `json:"voter_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	ownerID, err := s.store.GetQuestionVoterID(qid)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	if ownerID != req.VoterID {
+		http.Error(w, "not your question", http.StatusForbidden)
+		return
+	}
+
+	q, err := s.store.UpdateQuestionBody(qid, req.Body)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, q)
+}
+
 func (s *Server) handleUserDeleteQuestion(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	room, err := s.store.GetRoomBySlug(slug)

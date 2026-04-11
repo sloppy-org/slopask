@@ -169,7 +169,14 @@ header .brand { font-size: 0.75rem; color: #999; white-space: nowrap; margin-lef
 }
 @media (hover: hover) { .answer-submit-btn:hover { background: #000; color: #fff; } }
 
-/* admin delete */
+/* admin edit + delete */
+.q-edit {
+  cursor: pointer; font-size: 0.75rem; color: #555;
+  background: none; border: none; font: inherit;
+  -webkit-tap-highlight-color: transparent;
+  margin-right: 0.5rem;
+}
+@media (hover: hover) { .q-edit:hover { text-decoration: underline; } }
 .q-delete {
   cursor: pointer; font-size: 0.75rem; color: #c00;
   background: none; border: none; font: inherit;

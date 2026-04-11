@@ -68,6 +68,7 @@ func (s *Server) routes() chi.Router {
 		r.Post("/questions/{qid}/vote", s.handleVote)
 		r.Delete("/questions/{qid}/vote", s.handleUnvote)
 		r.Post("/answers/{aid}/vote", s.handleVoteAnswer)
+		r.Put("/questions/{qid}", s.handleUserEditQuestion)
 		r.Delete("/questions/{qid}", s.handleUserDeleteQuestion)
 		r.Delete("/questions/{qid}/media/{mid}", s.handleUserDeleteMedia)
 		r.Get("/events", s.handleStudentSSE)
