@@ -81,7 +81,6 @@ header .brand { font-size: 0.75rem; color: #999; white-space: nowrap; margin-lef
 .q-body { word-break: break-word; overflow-x: auto; }
 .q.collapsed .q-body { max-height: 3.2em; overflow: hidden; position: relative; }
 .q.collapsed .q-body::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 1.5em; background: linear-gradient(transparent, #fff); }
-.q.collapsed .q-media,
 .q.collapsed .q-answer,
 .q.collapsed .q-answer-form { display: none; }
 .q-body pre { background: #f5f5f5; border: 1px solid #eee; padding: 0.5rem; overflow-x: auto; margin: 0.4rem 0; font-size: 0.85rem; }

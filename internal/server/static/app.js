@@ -262,11 +262,13 @@ function renderQuestions() {
       throwOnError: false
     });
   }
-  // Collapse all except the expanded one.
+  // Collapse long questions (>3 lines of text) except the expanded one.
   var items = c.querySelectorAll('.q');
   for (var i = 0; i < items.length; i++) {
     var qid = parseInt(items[i].dataset.qid);
-    if (qid !== expandedQID) items[i].classList.add('collapsed');
+    var body = items[i].querySelector('.q-body');
+    var isLong = body && body.scrollHeight > 60;
+    if (qid !== expandedQID && isLong) items[i].classList.add('collapsed');
   }
 }
 
