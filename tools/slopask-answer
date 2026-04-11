@@ -459,9 +459,9 @@ def cmd_generate(args):
 
 
 def cmd_upload(args):
-    workdir = Path(args.workdir) if args.workdir else None
-    if not workdir or not workdir.exists():
-        print("workdir not found — run generate first", file=sys.stderr)
+    workdir = Path(args.workdir) if args.workdir else Path(args.course_dir) / "slopask" / f"q{args.qid}"
+    if not workdir.exists():
+        print(f"workdir not found: {workdir} — run generate first", file=sys.stderr)
         sys.exit(1)
 
     answer_text = (workdir / "answer_text.md").read_text()
@@ -489,7 +489,8 @@ def main():
     up = sub.add_parser("upload", help="Upload generated answer")
     up.add_argument("qid", type=int, help="Question ID")
     up.add_argument("--token", default="", help="Room admin token (default: from slopask/.env)")
-    up.add_argument("--workdir", required=True, help="Working directory from generate step")
+    up.add_argument("--course-dir", default=".", help="Course directory with slopask/.env")
+    up.add_argument("--workdir", help="Working directory (default: slopask/q<qid>/)")
 
     # Pre-scan for --course-dir to load .env before argparse evaluates defaults.
     course_dir = "."
