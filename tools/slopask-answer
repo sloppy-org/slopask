@@ -316,14 +316,14 @@ def generate_slopcast_clip(workdir, voice_wav, voice_txt=None):
     concat_file = workdir / "slides_concat.txt"
     concat_file.write_text("\n".join(concat_lines))
 
-    subprocess.run([
+    result = subprocess.run([
         "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file.resolve()),
         "-i", str(full_wav.resolve()),
         "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:white",
         "-c:v", "libx264", "-preset", "fast", "-crf", "23",
         "-c:a", "aac", "-b:a", "128k", "-shortest", "-r", "30",
         str(output_mp4.resolve()),
-    ], capture_output=True, text=True, check=False)
+    ], capture_output=True, text=True)
     if result.returncode != 0:
         print(f"ffmpeg fallback failed (exit {result.returncode}):", file=sys.stderr)
         print(result.stderr[-2000:], file=sys.stderr)
