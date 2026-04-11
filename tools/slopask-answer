@@ -18,6 +18,7 @@ import yaml
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_DIR = SCRIPT_DIR.parent
 SLOPCAST_DIR = Path(os.environ.get("SLOPCAST_DIR", Path.home() / "code" / "sloppy" / "slopcast"))
+TTS_PYTHON = os.environ.get("TTS_PYTHON", str(Path.home() / "code" / "sloppy" / "slopshell" / "tools" / "qwen3-tts" / ".venv" / "bin" / "python"))
 TEMPLATE_TEX = SCRIPT_DIR / "answer_template.tex"
 DEFAULT_API_URL = "https://ask.sloppy.at"
 STT_URL = os.environ.get("SLOPASK_STT_URL", "http://127.0.0.1:8427")
@@ -246,14 +247,18 @@ def write_segments_json(workdir):
 
 
 def generate_slopcast_clip(workdir, voice_wav):
-    """Run the slopcast pipeline to produce answer.mp4."""
+    """Run TTS + render to produce answer.mp4."""
     segments_path = workdir / "segments.json"
     audio_dir = workdir / "audio"
     audio_dir.mkdir(exist_ok=True)
+    pdf_path = workdir / "slide.pdf"
+    output_mp4 = workdir / "answer.mp4"
 
+    # 1. Generate audio via Qwen3-TTS (uses slopcast venv).
     gen_audio = SLOPCAST_DIR / "tools" / "generate_audio_qwen3tts.py"
+    print("  TTS audio generation...")
     result = subprocess.run(
-        [sys.executable, str(gen_audio), str(segments_path),
+        [TTS_PYTHON, str(gen_audio), str(segments_path),
          "--ref", str(voice_wav), "-o", str(audio_dir)],
         capture_output=True, text=True,
     )
@@ -262,29 +267,69 @@ def generate_slopcast_clip(workdir, voice_wav):
         print(result.stderr[-2000:], file=sys.stderr)
         sys.exit(1)
 
-    pdf_path = workdir / "slide.pdf"
+    # 2. Try slopcast render pipeline first.
     clips_dir = workdir / "clips"
     clips_dir.mkdir(exist_ok=True)
     render = SLOPCAST_DIR / "tools" / "render_narrated_slides.py"
+    print("  rendering slides...")
     result = subprocess.run(
         [sys.executable, str(render), str(pdf_path), str(audio_dir),
          "--segments", str(segments_path), "-o", str(clips_dir)],
         capture_output=True, text=True,
     )
-    if result.returncode != 0:
-        print("render_narrated_slides failed:", file=sys.stderr)
-        print(result.stderr[-2000:], file=sys.stderr)
+    if result.returncode == 0:
+        clips_json = clips_dir / "clips.json"
+        merge = SLOPCAST_DIR / "tools" / "merge_clips.py"
+        result = subprocess.run(
+            [sys.executable, str(merge), str(clips_json), "-o", str(output_mp4)],
+            capture_output=True, text=True,
+        )
+        if result.returncode == 0:
+            return output_mp4
+
+    # 3. Fallback: simple PDF-to-video with full_lecture.wav audio.
+    print("  slopcast render failed, using direct ffmpeg fallback...")
+    full_wav = audio_dir / "full_lecture.wav"
+    if not full_wav.exists():
+        print("no full_lecture.wav found", file=sys.stderr)
         sys.exit(1)
 
-    clips_json = clips_dir / "clips.json"
-    output_mp4 = workdir / "answer.mp4"
-    merge = SLOPCAST_DIR / "tools" / "merge_clips.py"
-    result = subprocess.run(
-        [sys.executable, str(merge), str(clips_json), "-o", str(output_mp4)],
-        capture_output=True, text=True,
-    )
+    pngs_dir = workdir / "pngs"
+    pngs_dir.mkdir(exist_ok=True)
+    subprocess.run(["pdftoppm", "-png", "-r", "200", str(pdf_path), str(pngs_dir / "page")],
+                   capture_output=True, check=True)
+
+    durations = json.load(open(audio_dir / "durations.json"))
+    segments = json.load(open(segments_path))
+    concat_lines = []
+    last_png = None
+    for i, seg in enumerate(segments):
+        # pdftoppm zero-pads page numbers (e.g. page-01.png for <100 pages).
+        page = seg["page"]
+        for fmt in [f"page-{page:02d}.png", f"page-{page}.png", f"page-{page:03d}.png"]:
+            candidate = pngs_dir / fmt
+            if candidate.exists():
+                break
+        png = str(candidate.resolve())
+        dur = durations.get(f"segment_{i+1:03d}.wav", 4.0)
+        concat_lines.append(f"file '{png}'")
+        concat_lines.append(f"duration {dur}")
+        last_png = png
+    concat_lines.append(f"file '{last_png}'")  # last_png already absolute
+
+    concat_file = workdir / "slides_concat.txt"
+    concat_file.write_text("\n".join(concat_lines))
+
+    subprocess.run([
+        "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file.resolve()),
+        "-i", str(full_wav.resolve()),
+        "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:white",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+        "-c:a", "aac", "-b:a", "128k", "-shortest", "-r", "30",
+        str(output_mp4.resolve()),
+    ], capture_output=True, text=True, check=False)
     if result.returncode != 0:
-        print("merge_clips failed:", file=sys.stderr)
+        print(f"ffmpeg fallback failed (exit {result.returncode}):", file=sys.stderr)
         print(result.stderr[-2000:], file=sys.stderr)
         sys.exit(1)
 
@@ -422,9 +467,14 @@ def main():
     up.add_argument("--token", default="", help="Room admin token (default: from slopask/.env)")
     up.add_argument("--workdir", required=True, help="Working directory from generate step")
 
-    args = parser.parse_args()
-    course_dir = getattr(args, "course_dir", ".")
+    # Pre-scan for --course-dir to load .env before argparse evaluates defaults.
+    course_dir = "."
+    for i, a in enumerate(sys.argv):
+        if a == "--course-dir" and i + 1 < len(sys.argv):
+            course_dir = sys.argv[i + 1]
     load_dotenv(course_dir)
+
+    args = parser.parse_args()
     if not args.token:
         args.token = os.environ.get("SLOPASK_TOKEN", "")
     if not args.token:
