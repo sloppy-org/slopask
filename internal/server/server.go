@@ -80,6 +80,7 @@ func (s *Server) routes() chi.Router {
 		r.Get("/questions", s.handleAdminListQuestions)
 		r.Put("/questions/{qid}", s.handleUpdateQuestion)
 		r.Post("/questions/{qid}/answer", s.handleCreateAnswer)
+		r.Put("/answers/{aid}", s.handleUpdateAnswer)
 		r.Delete("/questions/{qid}", s.handleDeleteQuestion)
 		r.Delete("/media/question/{mid}", s.handleDeleteMedia)
 		r.Delete("/media/answer/{mid}", s.handleDeleteMedia)

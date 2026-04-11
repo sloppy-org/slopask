@@ -567,6 +567,41 @@ func (s *Server) handleDeleteMedia(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (s *Server) handleUpdateAnswer(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+	_, err := s.store.GetRoomByAdminToken(token)
+	if errors.Is(err, store.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+
+	aidStr := chi.URLParam(r, "aid")
+	aid, err := strconv.ParseInt(aidStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid answer id", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Body string `json:"body"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	a, err := s.store.UpdateAnswerBody(aid, req.Body)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, a)
+}
+
 func (s *Server) handleDeleteQuestion(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
 	room, err := s.store.GetRoomByAdminToken(token)

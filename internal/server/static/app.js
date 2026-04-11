@@ -164,7 +164,7 @@ function renderMediaHTML(mediaList, parentType, canDelete) {
     }
     if (canDelete) {
       var pt = parentType || 'question';
-      html += '<button class="media-delete" data-mid="' + m.id + '" data-type="' + pt + '">x</button>';
+      html += '<button class="media-delete" data-mid="' + m.id + '" data-type="' + pt + '" title="delete this ' + m.kind + '">x</button>';
     }
     html += '</div>';
   }
@@ -201,6 +201,9 @@ function renderAnswerHTML(q) {
     html += '<button class="answer-nav-btn answer-next" data-qid="' + q.id + '"' + nextDisabled + '>' + ARROW_RIGHT + '</button>';
   } else {
     html += '<span class="answer-version">v1</span>';
+  }
+  if (isAdmin) {
+    html += '<button class="answer-edit-btn" data-aid="' + answer.id + '" data-qid="' + q.id + '">edit</button>';
   }
   html += '<span class="answer-spacer"></span>';
   html += '<span class="answer-thumb answer-thumb-up' + (myVote === 1 ? ' voted' : '') + '" data-aid="' + answer.id + '" data-dir="1">' +
@@ -413,11 +416,51 @@ document.getElementById('questions').addEventListener('click', function(e) {
   // Delete individual media (admin or own question).
   var mediaDel = e.target.closest('.media-delete');
   if (mediaDel) {
+    if (!confirm('Delete this media?')) return;
     var mid = parseInt(mediaDel.dataset.mid);
     var mtype = mediaDel.dataset.type;
     var delUrl = basePath + (isAdmin ? '/media/' + mtype + '/' + mid : '/questions/' + mediaDel.closest('.q').dataset.qid + '/media/' + mid + '?voter_id=' + voterID);
     fetch(delUrl, { method: 'DELETE' }).then(function(r) {
       if (r.ok) fetchQuestions();
+    });
+    return;
+  }
+
+  // Answer edit (admin only).
+  var ansEditBtn = e.target.closest('.answer-edit-btn');
+  if (ansEditBtn && isAdmin) {
+    var aid = parseInt(ansEditBtn.dataset.aid);
+    var qid = parseInt(ansEditBtn.dataset.qid);
+    var q = questions.find(function(x) { return x.id === qid; });
+    var answer = q && q.answers ? q.answers.find(function(a) { return a.id === aid; }) : null;
+    if (!answer) return;
+    var ansEl = ansEditBtn.closest('.q-answer');
+    var textEl = ansEl.querySelector('.q-answer-text');
+    if (ansEl.querySelector('.q-edit-area')) return;
+    var ta = document.createElement('textarea');
+    ta.className = 'q-edit-area';
+    ta.value = answer.body;
+    ta.style.cssText = 'width:100%;font:inherit;font-size:14px;border:1px solid #000;padding:0.4rem;min-height:3rem;resize:vertical;';
+    var saveBtn = document.createElement('button');
+    saveBtn.textContent = 'save';
+    saveBtn.style.cssText = 'background:none;border:1px solid #000;font:inherit;font-size:0.75rem;padding:0.2rem 0.5rem;margin-top:0.25rem;cursor:pointer;';
+    textEl.style.display = 'none';
+    textEl.parentNode.insertBefore(ta, textEl.nextSibling);
+    textEl.parentNode.insertBefore(saveBtn, ta.nextSibling);
+    ta.focus();
+    saveBtn.addEventListener('click', function() {
+      var newBody = ta.value.trim();
+      fetch(basePath + '/answers/' + aid, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: newBody })
+      }).then(function(r) {
+        if (!r.ok) throw new Error('status ' + r.status);
+        return r.json();
+      }).then(function(updated) {
+        answer.body = updated.body;
+        renderQuestions();
+      }).catch(function(err) { console.error('answer edit:', err); });
     });
     return;
   }

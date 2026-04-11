@@ -132,6 +132,15 @@ func (s *Store) GetAnswerByID(id int64) (*Answer, error) {
 	return &a, nil
 }
 
+// UpdateAnswerBody updates the text body of an answer version.
+func (s *Store) UpdateAnswerBody(answerID int64, body string) (*Answer, error) {
+	_, err := s.db.Exec(`UPDATE answers SET body = ? WHERE id = ?`, body, answerID)
+	if err != nil {
+		return nil, fmt.Errorf("update answer body: %w", err)
+	}
+	return s.GetAnswerByID(answerID)
+}
+
 // VoteAnswer records or updates a thumbs vote on an answer.
 // direction must be 1 (up) or -1 (down).
 func (s *Store) VoteAnswer(answerID int64, voterID string, direction int) error {
