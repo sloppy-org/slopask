@@ -21,7 +21,7 @@ header .brand { font-size: 0.75rem; color: #999; white-space: nowrap; margin-lef
 #compose { margin-bottom: 1.5rem; }
 #compose textarea {
   width: 100%; border: 1px solid #000; outline: none; resize: none;
-  font: inherit; font-size: 14px; min-height: 5rem; display: block;
+  font: inherit; font-size: 14px; min-height: 5.5rem; display: block;
   padding: 0.5rem; overflow: hidden;
   field-sizing: content;
 }
