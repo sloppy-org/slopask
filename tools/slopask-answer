@@ -157,18 +157,26 @@ def generate_answer_content(question_md, course_config):
     language = course_config.get("language", "de")
     lang_name = "German" if language == "de" else "English"
 
-    prompt = f"""Answer a student question for "{course_name}". Be SHORT — aim for ONE slide, max 30 seconds of narration.
+    prompt = f"""Answer a student question for the course "{course_name}". Produce exactly TWO slides.
 
 Question: {question_md}
 
-Output valid JSON:
-- "answer_text": 1-2 sentence markdown answer. Use LaTeX for formulas.
-- "slide_latex": Beamer LaTeX for exactly ONE \\begin{{frame}}...\\end{{frame}}. Start with the question (paraphrased in the title), then a concise answer with key formula or illustration. Use \\pause between items. Use \\autonote{{[tag] text}} for short TTS speaker notes (tags: trivial, simple, moderate, complex). Notes: proper {lang_name}, formulas as spoken words, UTF-8 umlauts, complete sentences, max 2 sentences per note.
-- "livecode": null (or Python LiveDemo script only if question is explicitly about code)
+Output valid JSON with these fields:
+- "answer_text": A complete markdown answer (3-5 sentences) with substance. Use LaTeX for formulas. Include references if applicable.
+- "slide_latex": Beamer LaTeX for exactly TWO frames:
+  Frame 1 — "Frage": Restate the question neutrally ("Die Frage lautete: ..."), then discuss what the question is really asking, what concepts are involved, why it is a good question. Use \\pause between items.
+  Frame 2 — "Antwort": Give a thorough answer with formulas, illustrations (TikZ if helpful), and a literature reference or source if applicable. Use \\pause between items.
+  Use \\autonote{{[tag] text}} for TTS speaker notes after each content element (tags: trivial, simple, moderate, complex). Notes must be TTS-ready: proper {lang_name} punctuation, formulas as spoken words, UTF-8 umlauts (not ae/oe/ue), complete natural sentences.
+- "livecode": null (or Python LiveDemo script only if the question is explicitly about programming)
 
-Rules: {lang_name} language. No \\begin{{frame}}[fragile]. Frame needs a short title. Keep it minimal — one clear answer, not a mini-lecture.
+Rules:
+- {lang_name} language matching the question.
+- NEVER say "eine Studentin hat gefragt" or similar. Always neutral: "Die Frage lautete" or "Es wurde gefragt".
+- The answer should have real substance and depth, not be superficial.
+- Include a literature reference or textbook pointer where appropriate.
+- Do NOT use \\begin{{frame}}[fragile] unless absolutely needed for lstlisting.
 
-Output ONLY valid JSON."""
+Output ONLY valid JSON, no markdown fences."""
 
     text = claude_cli(prompt)
     # Strip markdown fences if present.
