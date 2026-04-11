@@ -595,9 +595,6 @@ function submitQuestion() {
     if (!r.ok) throw new Error('status ' + r.status);
     return r.json();
   }).then(function(q) {
-    if (!questions.find(function(x) { return x.id === q.id; })) {
-      questions.unshift(q);
-    }
     myQuestions.add(q.id);
     saveMyQuestions();
     input.value = '';
@@ -605,7 +602,6 @@ function submitQuestion() {
     pendingFiles = [];
     document.getElementById('file-list').innerHTML = '';
     autoGrow();
-    renderQuestions();
   }).catch(function(err) { console.error('submit:', err); }).finally(function() {
     btn.disabled = false;
   });
