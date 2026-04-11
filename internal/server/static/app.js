@@ -595,7 +595,9 @@ function submitQuestion() {
     if (!r.ok) throw new Error('status ' + r.status);
     return r.json();
   }).then(function(q) {
-    questions.unshift(q);
+    if (!questions.find(function(x) { return x.id === q.id; })) {
+      questions.unshift(q);
+    }
     myQuestions.add(q.id);
     saveMyQuestions();
     input.value = '';
