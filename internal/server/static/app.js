@@ -602,6 +602,7 @@ function submitQuestion() {
     pendingFiles = [];
     document.getElementById('file-list').innerHTML = '';
     autoGrow();
+    renderQuestions();
   }).catch(function(err) { console.error('submit:', err); }).finally(function() {
     btn.disabled = false;
   });
