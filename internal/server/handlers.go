@@ -136,8 +136,9 @@ func (s *Server) handleCreateQuestion(w http.ResponseWriter, r *http.Request) {
 
 	body := r.FormValue("body")
 	voterID := r.FormValue("voter_id")
-	if body == "" {
-		http.Error(w, "body is required", http.StatusBadRequest)
+	mediaFiles := r.MultipartForm.File["media"]
+	if body == "" && len(mediaFiles) == 0 {
+		http.Error(w, "body or media is required", http.StatusBadRequest)
 		return
 	}
 
@@ -147,7 +148,6 @@ func (s *Server) handleCreateQuestion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mediaFiles := r.MultipartForm.File["media"]
 	for _, fh := range mediaFiles {
 		m, saveErr := s.saveUpload(fh, room.ID, "question", q.ID)
 		if saveErr != nil {
