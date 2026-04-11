@@ -5,6 +5,8 @@ uploads/
 *.db-journal
 *.db-wal
 *.db-shm
+.env
+*.env
 mockups/variant-a.html
 mockups/variant-b.html
 mockups/variant-c.html

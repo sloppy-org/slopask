@@ -18,9 +18,22 @@ import requests
 import yaml
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_DIR = SCRIPT_DIR.parent
 SLOPCAST_DIR = Path(os.environ.get("SLOPCAST_DIR", Path.home() / "code" / "sloppy" / "slopcast"))
 TEMPLATE_TEX = SCRIPT_DIR / "answer_template.tex"
 DEFAULT_API_URL = "https://ask.sloppy.at"
+
+
+def load_dotenv():
+    """Load .env from the repo root (gitignored, contains tokens)."""
+    env_file = REPO_DIR / ".env"
+    if env_file.exists():
+        for line in env_file.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip())
 
 
 def load_course_config(course_dir):
@@ -339,22 +352,28 @@ def cmd_upload(args):
 
 
 def main():
+    load_dotenv()
     parser = argparse.ArgumentParser(description="slopask answer pipeline")
     parser.add_argument("--api-url", default=os.environ.get("SLOPASK_API_URL", DEFAULT_API_URL))
     sub = parser.add_subparsers(dest="command", required=True)
 
     gen = sub.add_parser("generate", help="Generate answer for a question")
-    gen.add_argument("token", help="Room admin token")
     gen.add_argument("qid", type=int, help="Question ID")
+    gen.add_argument("--token", default=os.environ.get("SLOPASK_TOKEN", ""), help="Room admin token (default: $SLOPASK_TOKEN or $SLOPASK_WSD_TOKEN)")
     gen.add_argument("--course-dir", default=".", help="Course directory with course.yaml")
     gen.add_argument("--workdir", help="Working directory (default: auto-created temp dir)")
 
     up = sub.add_parser("upload", help="Upload generated answer")
-    up.add_argument("token", help="Room admin token")
     up.add_argument("qid", type=int, help="Question ID")
+    up.add_argument("--token", default=os.environ.get("SLOPASK_TOKEN", ""), help="Room admin token (default: $SLOPASK_TOKEN or $SLOPASK_WSD_TOKEN)")
     up.add_argument("--workdir", required=True, help="Working directory from generate step")
 
     args = parser.parse_args()
+    # Token fallback: --token > $SLOPASK_TOKEN > $SLOPASK_WSD_TOKEN > $SLOPASK_PROGPHYS_TOKEN
+    if not args.token:
+        args.token = os.environ.get("SLOPASK_TOKEN") or os.environ.get("SLOPASK_WSD_TOKEN", "")
+    if not args.token:
+        parser.error("no admin token: use --token or set SLOPASK_TOKEN / SLOPASK_WSD_TOKEN in .env")
     if args.command == "generate":
         cmd_generate(args)
     elif args.command == "upload":
