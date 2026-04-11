@@ -449,17 +449,25 @@ function submitQuestion() {
     fd.append('media', pendingFiles[i]);
   }
 
+  var btn = document.getElementById('btn-submit');
+  btn.disabled = true;
   fetch(basePath + '/questions', {
     method: 'POST',
     body: fd
-  }).then(function(r) { return r.json(); }).then(function(q) {
+  }).then(function(r) {
+    if (!r.ok) throw new Error('status ' + r.status);
+    return r.json();
+  }).then(function(q) {
     questions.unshift(q);
     input.value = '';
     preview.innerHTML = '';
     pendingFiles = [];
     document.getElementById('file-list').innerHTML = '';
+    autoGrow();
     renderQuestions();
-  }).catch(function(err) { console.error('submit:', err); });
+  }).catch(function(err) { console.error('submit:', err); }).finally(function() {
+    btn.disabled = false;
+  });
 }
 
 document.getElementById('btn-submit').addEventListener('click', submitQuestion);
