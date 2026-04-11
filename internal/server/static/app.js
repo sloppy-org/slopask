@@ -34,6 +34,18 @@ function saveVotedSet() {
 }
 var votedSet = loadVotedSet();
 
+// Own questions: IDs of questions this user posted (for self-delete).
+function loadMyQuestions() {
+  try {
+    var raw = localStorage.getItem('slopask_my_questions');
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch (_) { return new Set(); }
+}
+function saveMyQuestions() {
+  localStorage.setItem('slopask_my_questions', JSON.stringify([...myQuestions]));
+}
+var myQuestions = loadMyQuestions();
+
 // Answer votes persisted in localStorage: { answerID: direction }
 function loadAnswerVotes() {
   try {
@@ -136,7 +148,7 @@ var ARROW_RIGHT = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" st
 var THUMB_UP = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M5 14H3a1 1 0 01-1-1V8a1 1 0 011-1h2m0 7V7m0 7h5.5a1.5 1.5 0 001.45-1.1l1.2-4.8A1.5 1.5 0 0013.7 6H10V3.5A1.5 1.5 0 008.5 2L5 7"/></svg>';
 var THUMB_DOWN = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M11 2h2a1 1 0 011 1v5a1 1 0 01-1 1h-2m0-7v7m0-7H5.5A1.5 1.5 0 004.05 3.1l-1.2 4.8A1.5 1.5 0 004.3 10H8v2.5A1.5 1.5 0 009.5 14L13 9"/></svg>';
 
-function renderMediaHTML(mediaList, parentType) {
+function renderMediaHTML(mediaList, parentType, canDelete) {
   if (!mediaList || mediaList.length === 0) return '';
   var html = '<div class="q-media">';
   for (var i = 0; i < mediaList.length; i++) {
@@ -149,7 +161,7 @@ function renderMediaHTML(mediaList, parentType) {
     } else if (m.kind === 'video') {
       html += '<video controls preload="metadata" src="' + esc(m.url) + '"></video>';
     }
-    if (isAdmin) {
+    if (canDelete) {
       var pt = parentType || 'question';
       html += '<button class="media-delete" data-mid="' + m.id + '" data-type="' + pt + '">x</button>';
     }
@@ -175,7 +187,7 @@ function renderAnswerHTML(q) {
 
   var html = '<div class="q-answer" data-answer-id="' + answer.id + '">';
   html += '<div class="q-answer-text">' + renderMd(answer.body) + '</div>';
-  html += renderMediaHTML(answer.media, 'answer');
+  html += renderMediaHTML(answer.media, 'answer', isAdmin);
 
   // Version navigation + thumbs bar.
   var myVote = answerVotes[answer.id] || 0;
@@ -206,13 +218,16 @@ function renderQuestions() {
   });
   var c = document.getElementById('questions');
   c.innerHTML = sorted.map(function(q) {
-    var media = renderMediaHTML(q.media);
+    var canDeleteMedia = isAdmin || myQuestions.has(q.id);
+    var media = renderMediaHTML(q.media, 'question', canDeleteMedia);
     var ans = renderAnswerHTML(q);
     var v = votedSet.has(q.id);
 
     var adminBtns = '';
     if (isAdmin) {
       adminBtns += '<button class="q-delete" data-id="' + q.id + '">delete</button>';
+    } else if (myQuestions.has(q.id)) {
+      adminBtns += '<button class="q-delete q-self-delete" data-id="' + q.id + '">delete</button>';
     }
 
     var answerForm = '';
@@ -332,24 +347,35 @@ document.getElementById('questions').addEventListener('click', function(e) {
     return;
   }
 
-  // Admin: delete question.
+  // Delete question (admin or own).
   var del = e.target.closest('.q-delete');
-  if (del && isAdmin) {
+  if (del) {
     var qid = parseInt(del.dataset.id);
-    if (!confirm('Delete this question?')) return;
-    fetch(basePath + '/questions/' + qid, { method: 'DELETE' }).then(function() {
-      questions = questions.filter(function(q) { return q.id !== qid; });
-      renderQuestions();
+    if (!confirm('Delete?')) return;
+    var opts = { method: 'DELETE' };
+    if (!isAdmin) {
+      opts.headers = { 'Content-Type': 'application/json' };
+      opts.body = JSON.stringify({ voter_id: voterID });
+    }
+    fetch(basePath + '/questions/' + qid, opts).then(function(r) {
+      if (r.ok) {
+        questions = questions.filter(function(q) { return q.id !== qid; });
+        myQuestions.delete(qid);
+        saveMyQuestions();
+        renderQuestions();
+      }
     });
   }
 
-  // Admin: delete individual media.
+  // Delete individual media (admin or own question).
   var mediaDel = e.target.closest('.media-delete');
-  if (mediaDel && isAdmin) {
+  if (mediaDel) {
     var mid = parseInt(mediaDel.dataset.mid);
     var mtype = mediaDel.dataset.type;
-    fetch(basePath + '/media/' + mtype + '/' + mid, { method: 'DELETE' })
-      .then(function() { fetchQuestions(); });
+    var delUrl = basePath + (isAdmin ? '/media/' + mtype + '/' + mid : '/questions/' + mediaDel.closest('.q').dataset.qid + '/media/' + mid + '?voter_id=' + voterID);
+    fetch(delUrl, { method: 'DELETE' }).then(function(r) {
+      if (r.ok) fetchQuestions();
+    });
     return;
   }
 
@@ -570,6 +596,8 @@ function submitQuestion() {
     return r.json();
   }).then(function(q) {
     questions.unshift(q);
+    myQuestions.add(q.id);
+    saveMyQuestions();
     input.value = '';
     preview.innerHTML = '';
     pendingFiles = [];

@@ -376,6 +376,102 @@ func (s *Server) handleCreateAnswer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, answer)
 }
 
+func (s *Server) handleUserDeleteQuestion(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+	room, err := s.store.GetRoomBySlug(slug)
+	if errors.Is(err, store.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+
+	qid, err := parseQID(r)
+	if err != nil {
+		http.Error(w, "invalid question id", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		VoterID string `json:"voter_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.VoterID == "" {
+		http.Error(w, "voter_id required", http.StatusBadRequest)
+		return
+	}
+
+	ownerID, err := s.store.GetQuestionVoterID(qid)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	if ownerID != req.VoterID {
+		http.Error(w, "not your question", http.StatusForbidden)
+		return
+	}
+
+	if err := s.store.DeleteQuestion(qid); err != nil {
+		serverError(w, err)
+		return
+	}
+	data, _ := json.Marshal(map[string]int64{"question_id": qid})
+	s.broker.publish(room.ID, "question_delete", string(data))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleUserDeleteMedia(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+	_, err := s.store.GetRoomBySlug(slug)
+	if errors.Is(err, store.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+
+	qid, err := parseQID(r)
+	if err != nil {
+		http.Error(w, "invalid question id", http.StatusBadRequest)
+		return
+	}
+
+	// Check ownership via query param voter_id.
+	voterID := r.URL.Query().Get("voter_id")
+	if voterID == "" {
+		http.Error(w, "voter_id required", http.StatusBadRequest)
+		return
+	}
+	ownerID, err := s.store.GetQuestionVoterID(qid)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	if ownerID != voterID {
+		http.Error(w, "not your question", http.StatusForbidden)
+		return
+	}
+
+	midStr := chi.URLParam(r, "mid")
+	mid, err := strconv.ParseInt(midStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid media id", http.StatusBadRequest)
+		return
+	}
+
+	diskPath, err := s.store.DeleteMedia("question", mid)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	fullPath := filepath.Join(s.uploadsDir, diskPath)
+	os.Remove(fullPath)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s *Server) handleDeleteMedia(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
 	_, err := s.store.GetRoomByAdminToken(token)

@@ -144,6 +144,16 @@ func (s *Store) UpdateQuestionBody(id int64, newBody string) (*Question, error) 
 	return s.GetQuestion(id)
 }
 
+// GetQuestionVoterID returns the voter_id of a question.
+func (s *Store) GetQuestionVoterID(id int64) (string, error) {
+	var voterID string
+	err := s.db.QueryRow(`SELECT voter_id FROM questions WHERE id = ?`, id).Scan(&voterID)
+	if err != nil {
+		return "", fmt.Errorf("get question voter_id: %w", err)
+	}
+	return voterID, nil
+}
+
 // DeleteQuestion removes a question and its related data.
 func (s *Store) DeleteQuestion(id int64) error {
 	_, err := s.db.Exec(`DELETE FROM questions WHERE id = ?`, id)
