@@ -154,7 +154,37 @@ func (s *Store) GetQuestionVoterID(id int64) (string, error) {
 	return voterID, nil
 }
 
-// DeleteQuestion removes a question and its related data.
+// CollectMediaPaths returns all disk_paths for media attached to a question
+// and its answers. Call before DeleteQuestion to enable file cleanup.
+func (s *Store) CollectMediaPaths(questionID int64) ([]string, error) {
+	var paths []string
+	rows, err := s.db.Query(`SELECT disk_path FROM question_media WHERE question_id = ?`, questionID)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var p string
+		rows.Scan(&p)
+		paths = append(paths, p)
+	}
+	rows.Close()
+	rows, err = s.db.Query(
+		`SELECT am.disk_path FROM answer_media am
+		 JOIN answers a ON am.answer_id = a.id
+		 WHERE a.question_id = ?`, questionID)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var p string
+		rows.Scan(&p)
+		paths = append(paths, p)
+	}
+	rows.Close()
+	return paths, nil
+}
+
+// DeleteQuestion removes a question and its related data (DB only, not files).
 func (s *Store) DeleteQuestion(id int64) error {
 	_, err := s.db.Exec(`DELETE FROM questions WHERE id = ?`, id)
 	if err != nil {

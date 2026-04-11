@@ -593,7 +593,7 @@ func TestImpressumEndpoint(t *testing.T) {
 	t.Parallel()
 	ts, _ := newTestServer(t)
 
-	resp, err := http.Get(ts.URL + "/impressum")
+	resp, err := http.Get(ts.URL + "/legalnotes")
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
@@ -654,8 +654,8 @@ func TestRootRedirect(t *testing.T) {
 		t.Errorf("status = %d, want 307", resp.StatusCode)
 	}
 	loc := resp.Header.Get("Location")
-	if loc != "/impressum" {
-		t.Errorf("location = %q, want /impressum", loc)
+	if loc != "/legalnotes" {
+		t.Errorf("location = %q, want /legalnotes", loc)
 	}
 }
 

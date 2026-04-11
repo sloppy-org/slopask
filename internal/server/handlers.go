@@ -53,7 +53,7 @@ var allowedMIME = map[string]map[string]bool{
 
 var roomTmpl = template.Must(template.ParseFS(staticFS, "static/room.html"))
 var adminTmpl = template.Must(template.ParseFS(staticFS, "static/admin.html"))
-var impressumTmpl = template.Must(template.ParseFS(staticFS, "static/impressum.html"))
+var impressumTmpl = template.Must(template.ParseFS(staticFS, "static/legalnotes.html"))
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -376,6 +376,20 @@ func (s *Server) handleCreateAnswer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, answer)
 }
 
+// deleteQuestionFull collects media files, deletes the DB rows, then removes files from disk.
+func (s *Server) deleteQuestionFull(qid int64, roomID int64) error {
+	paths, _ := s.store.CollectMediaPaths(qid)
+	if err := s.store.DeleteQuestion(qid); err != nil {
+		return err
+	}
+	for _, p := range paths {
+		os.Remove(filepath.Join(s.uploadsDir, p))
+	}
+	data, _ := json.Marshal(map[string]int64{"question_id": qid})
+	s.broker.publish(roomID, "question_delete", string(data))
+	return nil
+}
+
 func (s *Server) handleUserDeleteQuestion(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	room, err := s.store.GetRoomBySlug(slug)
@@ -412,12 +426,10 @@ func (s *Server) handleUserDeleteQuestion(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := s.store.DeleteQuestion(qid); err != nil {
+	if err := s.deleteQuestionFull(qid, room.ID); err != nil {
 		serverError(w, err)
 		return
 	}
-	data, _ := json.Marshal(map[string]int64{"question_id": qid})
-	s.broker.publish(room.ID, "question_delete", string(data))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -528,13 +540,10 @@ func (s *Server) handleDeleteQuestion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.store.DeleteQuestion(qid); err != nil {
+	if err := s.deleteQuestionFull(qid, room.ID); err != nil {
 		serverError(w, err)
 		return
 	}
-
-	data, _ := json.Marshal(map[string]int64{"question_id": qid})
-	s.broker.publish(room.ID, "question_delete", string(data))
 	w.WriteHeader(http.StatusNoContent)
 }
 

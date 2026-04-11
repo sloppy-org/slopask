@@ -43,12 +43,15 @@ func (s *Server) routes() chi.Router {
 	r.Use(middleware.Recoverer)
 	r.Use(securityHeaders)
 
-	// Landing page redirects to impressum for now.
+	// Landing page redirects to legal notes.
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/impressum", http.StatusTemporaryRedirect)
+		http.Redirect(w, r, "/legalnotes", http.StatusTemporaryRedirect)
 	})
 	r.Get("/health", s.handleHealth)
-	r.Get("/impressum", s.handleImpressum)
+	r.Get("/legalnotes", s.handleImpressum)
+	r.Get("/impressum", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/legalnotes", http.StatusMovedPermanently)
+	})
 
 	// Serve embedded static assets at /static/.
 	staticSub, _ := fs.Sub(staticFS, "static")

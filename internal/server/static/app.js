@@ -769,33 +769,7 @@ recDone.addEventListener('click', function() {
 });
 recCancel.addEventListener('click', closeRecorder);
 
-// Impressum toggle.
-var impressumLink = document.getElementById('link-impressum');
-var backLink = document.getElementById('link-back');
-if (impressumLink) {
-  impressumLink.addEventListener('click', function(e) {
-    e.preventDefault();
-    ['questions', 'compose', 'sort'].forEach(function(id) {
-      var el = document.getElementById(id);
-      if (el) el.style.display = 'none';
-    });
-    var ft = document.querySelector('footer');
-    if (ft) ft.style.display = 'none';
-    document.getElementById('impressum-page').style.display = 'block';
-  });
-}
-if (backLink) {
-  backLink.addEventListener('click', function(e) {
-    e.preventDefault();
-    ['questions', 'compose', 'sort'].forEach(function(id) {
-      var el = document.getElementById(id);
-      if (el) el.style.display = '';
-    });
-    var ft = document.querySelector('footer');
-    if (ft) ft.style.display = '';
-    document.getElementById('impressum-page').style.display = 'none';
-  });
-}
+// Legal notes: just a link now, no inline toggle needed.
 
 // SSE: real-time updates.
 function connectSSE() {
