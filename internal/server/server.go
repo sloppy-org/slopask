@@ -72,6 +72,7 @@ func (s *Server) routes() chi.Router {
 	r.Route("/admin/{token}", func(r chi.Router) {
 		r.Get("/", s.handleAdmin)
 		r.Get("/questions", s.handleAdminListQuestions)
+		r.Put("/questions/{qid}", s.handleUpdateQuestion)
 		r.Post("/questions/{qid}/answer", s.handleCreateAnswer)
 		r.Delete("/questions/{qid}", s.handleDeleteQuestion)
 		r.Get("/events", s.handleAdminSSE)
@@ -81,6 +82,7 @@ func (s *Server) routes() chi.Router {
 	r.Route("/api/v0/rooms/{token}", func(r chi.Router) {
 		r.Get("/questions", s.handleAPIListQuestions)
 		r.Get("/questions/{qid}", s.handleAPIGetQuestion)
+		r.Put("/questions/{qid}", s.handleUpdateQuestion)
 		r.Post("/questions/{qid}/answer", s.handleAPICreateAnswer)
 	})
 

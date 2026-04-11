@@ -6,15 +6,16 @@ import (
 
 // Question represents a student question.
 type Question struct {
-	ID        int64    `json:"id"`
-	RoomID    int64    `json:"room_id"`
-	Body      string   `json:"body"`
-	VoterID   string   `json:"-"`
-	VoteCount int      `json:"vote_count"`
-	Answered  bool     `json:"answered"`
-	CreatedAt int64    `json:"created_at"`
-	Media     []Media  `json:"media,omitempty"`
-	Answers   []Answer `json:"answers"`
+	ID           int64    `json:"id"`
+	RoomID       int64    `json:"room_id"`
+	Body         string   `json:"body"`
+	OriginalBody string   `json:"original_body,omitempty"`
+	VoterID      string   `json:"-"`
+	VoteCount    int      `json:"vote_count"`
+	Answered     bool     `json:"answered"`
+	CreatedAt    int64    `json:"created_at"`
+	Media        []Media  `json:"media,omitempty"`
+	Answers      []Answer `json:"answers"`
 }
 
 // CreateQuestion inserts a new question into the given room.
@@ -37,7 +38,7 @@ func (s *Store) ListQuestions(roomID int64, sort string) ([]Question, error) {
 		orderBy = "created_at DESC"
 	}
 	rows, err := s.db.Query(
-		`SELECT id, room_id, body, voter_id, vote_count, answered, created_at
+		`SELECT id, room_id, body, original_body, voter_id, vote_count, answered, created_at
 		 FROM questions WHERE room_id = ? ORDER BY `+orderBy,
 		roomID,
 	)
@@ -48,7 +49,7 @@ func (s *Store) ListQuestions(roomID int64, sort string) ([]Question, error) {
 	var questions []Question
 	for rows.Next() {
 		var q Question
-		if err := rows.Scan(&q.ID, &q.RoomID, &q.Body, &q.VoterID, &q.VoteCount, &q.Answered, &q.CreatedAt); err != nil {
+		if err := rows.Scan(&q.ID, &q.RoomID, &q.Body, &q.OriginalBody, &q.VoterID, &q.VoteCount, &q.Answered, &q.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan question: %w", err)
 		}
 		questions = append(questions, q)
@@ -67,7 +68,7 @@ func (s *Store) ListQuestions(roomID int64, sort string) ([]Question, error) {
 
 // ListQuestionsFiltered returns questions optionally filtered by answered state.
 func (s *Store) ListQuestionsFiltered(roomID int64, filter string) ([]Question, error) {
-	query := `SELECT id, room_id, body, voter_id, vote_count, answered, created_at
+	query := `SELECT id, room_id, body, original_body, voter_id, vote_count, answered, created_at
 	          FROM questions WHERE room_id = ?`
 	if filter == "unanswered" {
 		query += " AND answered = 0"
@@ -81,7 +82,7 @@ func (s *Store) ListQuestionsFiltered(roomID int64, filter string) ([]Question, 
 	var questions []Question
 	for rows.Next() {
 		var q Question
-		if err := rows.Scan(&q.ID, &q.RoomID, &q.Body, &q.VoterID, &q.VoteCount, &q.Answered, &q.CreatedAt); err != nil {
+		if err := rows.Scan(&q.ID, &q.RoomID, &q.Body, &q.OriginalBody, &q.VoterID, &q.VoteCount, &q.Answered, &q.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan question: %w", err)
 		}
 		questions = append(questions, q)
@@ -101,9 +102,9 @@ func (s *Store) ListQuestionsFiltered(roomID int64, filter string) ([]Question, 
 func (s *Store) GetQuestion(id int64) (*Question, error) {
 	var q Question
 	err := s.db.QueryRow(
-		`SELECT id, room_id, body, voter_id, vote_count, answered, created_at
+		`SELECT id, room_id, body, original_body, voter_id, vote_count, answered, created_at
 		 FROM questions WHERE id = ?`, id,
-	).Scan(&q.ID, &q.RoomID, &q.Body, &q.VoterID, &q.VoteCount, &q.Answered, &q.CreatedAt)
+	).Scan(&q.ID, &q.RoomID, &q.Body, &q.OriginalBody, &q.VoterID, &q.VoteCount, &q.Answered, &q.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("get question: %w", err)
 	}
@@ -129,6 +130,18 @@ func (s *Store) attachQuestionExtras(q *Question) error {
 	}
 	q.Answers = answers
 	return nil
+}
+
+// UpdateQuestionBody updates the display body. On first edit, the original body is preserved.
+func (s *Store) UpdateQuestionBody(id int64, newBody string) (*Question, error) {
+	_, err := s.db.Exec(
+		`UPDATE questions SET original_body = CASE WHEN original_body = '' THEN body ELSE original_body END, body = ? WHERE id = ?`,
+		newBody, id,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("update question body: %w", err)
+	}
+	return s.GetQuestion(id)
 }
 
 // DeleteQuestion removes a question and its related data.

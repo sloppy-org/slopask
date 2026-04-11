@@ -76,6 +76,9 @@ func (s *Store) migrate() error {
 		s.db.Exec("DROP TABLE IF EXISTS answers")
 	}
 
+	// Migration: add original_body column to questions if missing.
+	s.db.Exec("ALTER TABLE questions ADD COLUMN original_body TEXT NOT NULL DEFAULT ''")
+
 	const schema = `
 CREATE TABLE IF NOT EXISTS rooms (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -90,6 +93,7 @@ CREATE TABLE IF NOT EXISTS questions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   room_id INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
   body TEXT NOT NULL DEFAULT '',
+  original_body TEXT NOT NULL DEFAULT '',
   voter_id TEXT NOT NULL DEFAULT '',
   vote_count INTEGER NOT NULL DEFAULT 0,
   answered INTEGER NOT NULL DEFAULT 0,

@@ -784,6 +784,11 @@ function connectSSE() {
     questions = questions.filter(function(q) { return q.id !== data.question_id; });
     renderQuestions();
   });
+  evtSource.addEventListener('question_update', function(e) {
+    var data = JSON.parse(e.data);
+    var q = questions.find(function(x) { return x.id === data.id; });
+    if (q) { q.body = data.body; q.original_body = data.original_body; renderQuestions(); }
+  });
   evtSource.addEventListener('answer_new', function(e) {
     var data = JSON.parse(e.data);
     var q = questions.find(function(x) { return x.id === data.question_id; });

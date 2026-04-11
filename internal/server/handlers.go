@@ -289,6 +289,43 @@ func (s *Server) handleAdminListQuestions(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, questions)
 }
 
+func (s *Server) handleUpdateQuestion(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+	room, err := s.store.GetRoomByAdminToken(token)
+	if errors.Is(err, store.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+
+	qid, err := parseQID(r)
+	if err != nil {
+		http.Error(w, "invalid question id", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Body string `json:"body"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	q, err := s.store.UpdateQuestionBody(qid, req.Body)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+
+	data, _ := json.Marshal(q)
+	s.broker.publish(room.ID, "question_update", string(data))
+	writeJSON(w, http.StatusOK, q)
+}
+
 func (s *Server) handleCreateAnswer(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
 	room, err := s.store.GetRoomByAdminToken(token)
