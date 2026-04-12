@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css" integrity="sha384-zh0CIslj+VczCZtlzBcjt5ppRcsAmDnRem7ESsYwWwg3m/OaJ2l4x7YBZl9Kxxib" crossorigin="anonymous">
 <link rel="stylesheet" href="/static/style.css">
 </head>
-<body>
+<body data-slug="{{.Slug}}" data-token="{{.AdminToken}}" data-base-path="/admin/{{.AdminToken}}" data-is-admin="true">
 
 <header>
   <h1>{{.Title}} <span style="font-weight:400;color:#999;font-size:0.8rem">(admin)</span></h1>
@@ -71,7 +71,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.js" integrity="sha384-Rma6DA2IPUwhNxmrB/7S3Tno0YY7sFu9WSYMCuulLhIqYSGZ2gKCJWIqhBWqMQfh" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/contrib/auto-render.min.js" integrity="sha384-hCXGrW6PitJEwbkoStFjeJxv+fSOOQKOPbJxSfM6G5sWZjAyWhXiTIIAmQqnlLlh" crossorigin="anonymous"></script>
-<script>window.SLOPASK = { token: "{{.AdminToken}}", basePath: "/admin/{{.AdminToken}}", isAdmin: true };</script>
 <script src="/static/app.js"></script>
 </body>
 </html>

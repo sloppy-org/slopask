@@ -1,13 +1,12 @@
 'use strict';
 
-// Configuration injected by the HTML template.
-// window.SLOPASK = { slug, token, basePath, isAdmin }
+// Configuration read from data attributes on <body>.
 
 (function() {
 
-var CFG = window.SLOPASK || {};
-var basePath = CFG.basePath || '';
-var isAdmin = CFG.isAdmin || false;
+var bd = document.body.dataset;
+var basePath = bd.basePath || '';
+var isAdmin = bd.isAdmin === 'true';
 
 // Voter ID: random UUID stored in localStorage.
 function getVoterID() {
