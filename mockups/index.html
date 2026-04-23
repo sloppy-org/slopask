@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ask.sloppy — UI Variants</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+  background: #f5f0eb;
+  color: #2c2c2c;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.container {
+  max-width: 900px;
+  width: 100%;
+  padding: 40px 20px;
+}
+h1 {
+  font-size: 28px;
+  font-weight: 300;
+  margin-bottom: 8px;
+}
+.subtitle {
+  color: #7a7a7a;
+  font-size: 15px;
+  margin-bottom: 40px;
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px;
+}
+.card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 28px 24px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  text-decoration: none;
+  color: inherit;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+.card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  transform: translateY(-2px);
+}
+.card h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.card .tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+.card-a .tag { background: #faf0f0; color: #8b0000; }
+.card-b .tag { background: #fdf0e6; color: #e07020; }
+.card-c .tag { background: #eeedf8; color: #7c6ff7; }
+.card p {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #555;
+}
+.card .preview {
+  margin-top: 16px;
+  height: 140px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: #999;
+}
+.card-a .preview {
+  background: #fafaf8;
+  border: 1px solid #d0d0c8;
+  font-family: Georgia, serif;
+}
+.card-b .preview {
+  background: #f5f0eb;
+  border: 1px solid #e8e0d8;
+}
+.card-c .preview {
+  background: #1e1e2e;
+  color: #e0e0e0;
+  font-size: 12px;
+}
+footer {
+  text-align: center;
+  margin-top: 40px;
+  font-size: 13px;
+  color: #999;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>ask.sloppy</h1>
+  <p class="subtitle">Anonymous Q&amp;A for lectures — pick a UI variant</p>
+  <div class="cards">
+    <a href="variant-a.html" class="card card-a">
+      <span class="tag">Variant A</span>
+      <h2>Minimal Academic</h2>
+      <p>Serif typography, paper-like background, sparse layout. Looks like a physics department page. No shadows, no rounded corners.</p>
+      <div class="preview">Georgia, #fafaf8, print-like</div>
+    </a>
+    <a href="variant-b.html" class="card card-b">
+      <span class="tag">Variant B</span>
+      <h2>Card-Based Modern</h2>
+      <p>Sans-serif, warm linen background, white cards with shadows. Orange accent, pill buttons. Friendly and contemporary.</p>
+      <div class="preview">Inter, cards, warm orange</div>
+    </a>
+    <a href="variant-c.html" class="card card-c">
+      <span class="tag">Variant C</span>
+      <h2>Chat-Like Conversational</h2>
+      <p>Dark mode, message bubbles, fixed input bar at bottom. Threaded answers. Mobile-first, Discord-like.</p>
+      <div class="preview">dark mode, bubbles, purple</div>
+    </a>
+  </div>
+  <footer>slopask — github.com/sloppy-org/slopask</footer>
+</div>
+</body>
+</html>

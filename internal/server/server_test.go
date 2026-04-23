@@ -502,6 +502,39 @@ func TestAPIListQuestions_Unanswered(t *testing.T) {
 	}
 }
 
+func TestAPIListQuestions_Newest(t *testing.T) {
+	t.Parallel()
+	ts, st := newTestServer(t)
+	room := createTestRoom(t, st, "API Newest Room")
+	q1 := createTestQuestion(t, st, room.ID, "Older")
+	q2 := createTestQuestion(t, st, room.ID, "Newest")
+	if err := st.Vote(q1.ID, "voter-a"); err != nil {
+		t.Fatalf("Vote older: %v", err)
+	}
+	if err := st.Vote(q1.ID, "voter-b"); err != nil {
+		t.Fatalf("Vote older: %v", err)
+	}
+
+	resp, err := http.Get(ts.URL + "/api/v0/rooms/" + room.AdminToken + "/questions?sort=newest")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	var questions []store.Question
+	if err := json.NewDecoder(resp.Body).Decode(&questions); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(questions) != 2 {
+		t.Fatalf("len = %d, want 2", len(questions))
+	}
+	if questions[0].ID != q2.ID {
+		t.Errorf("first question ID = %d, want %d (newest)", questions[0].ID, q2.ID)
+	}
+}
+
 func TestAPIListQuestions_BadToken(t *testing.T) {
 	t.Parallel()
 	ts, _ := newTestServer(t)

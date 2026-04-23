@@ -66,14 +66,19 @@ func (s *Store) ListQuestions(roomID int64, sort string) ([]Question, error) {
 	return questions, nil
 }
 
-// ListQuestionsFiltered returns questions optionally filtered by answered state.
-func (s *Store) ListQuestionsFiltered(roomID int64, filter string) ([]Question, error) {
+// ListQuestionsFiltered returns questions optionally filtered by answered state
+// and sorted by votes or newest.
+func (s *Store) ListQuestionsFiltered(roomID int64, filter, sort string) ([]Question, error) {
 	query := `SELECT id, room_id, body, original_body, voter_id, vote_count, answered, created_at
 	          FROM questions WHERE room_id = ?`
 	if filter == "unanswered" {
 		query += " AND answered = 0"
 	}
-	query += " ORDER BY vote_count DESC, created_at DESC"
+	orderBy := "vote_count DESC, created_at DESC"
+	if sort == "newest" {
+		orderBy = "created_at DESC"
+	}
+	query += " ORDER BY " + orderBy
 	rows, err := s.db.Query(query, roomID)
 	if err != nil {
 		return nil, fmt.Errorf("list questions filtered: %w", err)

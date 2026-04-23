@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ask.sloppy</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  background: #fff;
+  color: #000;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem;
+  -webkit-text-size-adjust: 100%;
+}
+a { color: inherit; }
+
+/* header */
+header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #000; padding-bottom: 0.5rem; margin-bottom: 1.25rem; }
+header h1 { font-size: 0.95rem; font-weight: 600; }
+header .brand { font-size: 0.75rem; color: #999; white-space: nowrap; margin-left: 1rem; }
+
+/* compose */
+#compose { margin-bottom: 1.5rem; }
+#compose textarea {
+  width: 100%; border: 1px solid #000; outline: none; resize: none;
+  font: inherit; font-size: 16px; min-height: 5rem; display: block;
+  padding: 0.5rem; overflow: hidden;
+  field-sizing: content;
+}
+#compose textarea:focus { border-color: #000; }
+#compose textarea::placeholder { color: #bbb; }
+#compose-preview { font-size: 0.9rem; margin-top: 0.35rem; padding: 0.35rem 0; overflow-x: auto; color: #333; }
+#compose-preview:empty { display: none; }
+.file-list { font-size: 0.75rem; color: #555; margin-top: 0.25rem; }
+.file-list span { margin-right: 0.75rem; }
+#compose-bar { display: flex; align-items: center; margin-top: 0.35rem; gap: 0.15rem; }
+.att-btn {
+  background: none; border: none; cursor: pointer; color: #000;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 40px; padding: 0; opacity: 0.55;
+}
+.att-btn svg { width: 18px; height: 18px; }
+@media (hover: hover) { .att-btn:hover { opacity: 1; } }
+.att-btn.active { opacity: 1; }
+#compose-bar .spacer { flex: 1; }
+#btn-submit {
+  background: none; color: #000; border: 1px solid #000; font: inherit;
+  font-size: 0.75rem; padding: 0 0.75rem; cursor: pointer;
+  height: 40px; display: inline-flex; align-items: center;
+  letter-spacing: 0.02em;
+}
+@media (hover: hover) { #btn-submit:hover { background: #000; color: #fff; } }
+
+/* recorder */
+#recorder { display: none; margin-top: 0.35rem; border: 1px solid #ccc; padding: 0.5rem; }
+#recorder.active { display: block; }
+#rec-top { display: flex; align-items: center; gap: 0.5rem; }
+#rec-canvas { width: 100%; height: 36px; display: block; margin-top: 0.35rem; }
+.rec-dot { width: 8px; height: 8px; background: red; border-radius: 50%; flex-shrink: 0; opacity: 0; }
+#recorder.recording .rec-dot { opacity: 1; animation: blink 1s infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.rec-timer { font-size: 0.8rem; min-width: 3em; color: #555; font-variant-numeric: tabular-nums; }
+.rec-btn {
+  background: none; border: none; cursor: pointer; opacity: 0.4;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; padding: 0;
+}
+.rec-btn svg { width: 16px; height: 16px; }
+.rec-btn:disabled { opacity: 0.1; cursor: default; }
+@media (hover: hover) { .rec-btn:not(:disabled):hover { opacity: 1; } }
+.rec-preview { display: none; width: 100%; aspect-ratio: 16/9; background: #000; margin-top: 0.35rem; }
+#recorder.video-mode .rec-preview { display: block; }
+
+/* sort */
+#sort { font-size: 0.75rem; margin-bottom: 0.5rem; color: #999; }
+#sort a { cursor: pointer; color: #999; text-decoration: none; margin-right: 0.5rem; -webkit-tap-highlight-color: transparent; }
+#sort a.active { color: #000; font-weight: 700; }
+@media (hover: hover) { #sort a:hover { color: #000; } }
+
+/* questions */
+.q { border-bottom: 1px solid #eee; padding: 0.75rem 0; }
+.q:first-child { padding-top: 0; }
+.q-body { word-break: break-word; overflow-x: auto; }
+.q-body pre { background: #f5f5f5; border: 1px solid #eee; padding: 0.5rem; overflow-x: auto; margin: 0.4rem 0; font-size: 0.85rem; }
+.q-body code { background: #f5f5f5; padding: 0.1rem 0.3rem; font-size: 0.9em; }
+.q-body pre code { background: none; padding: 0; }
+.q-body blockquote { border-left: 2px solid #ccc; padding-left: 0.5rem; color: #555; margin: 0.3rem 0; }
+.q-body ul, .q-body ol { margin: 0.3rem 0 0.3rem 1.5rem; }
+.q-body h1, .q-body h2, .q-body h3, .q-body h4 { margin: 0.4rem 0 0.2rem; font-size: 1rem; }
+.q-body hr { border: none; border-top: 1px solid #ccc; margin: 0.5rem 0; }
+.q-body a { text-decoration: underline; }
+.q-body .katex-display { overflow-x: auto; overflow-y: hidden; }
+.q-meta { font-size: 0.8rem; color: #999; margin-top: 0.4rem; display: flex; gap: 0.75rem; align-items: center; }
+.q-vote {
+  cursor: pointer; user-select: none;
+  min-height: 44px;
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  -webkit-tap-highlight-color: transparent;
+  color: #999;
+}
+.q-vote svg { width: 16px; height: 16px; flex-shrink: 0; transition: transform 0.1s; }
+.q-vote .vote-count { font-variant-numeric: tabular-nums; font-size: 0.85rem; }
+@media (hover: hover) { .q-vote:hover { color: #000; } }
+.q-vote:active svg { transform: translateY(-2px); }
+.q-vote.voted { color: #000; }
+.q-vote.voted svg { fill: #000; stroke: #000; }
+.q-media { margin-top: 0.5rem; }
+.q-media img { max-width: 100%; max-height: 200px; border: 1px solid #eee; }
+.q-media audio, .q-media video { max-width: 100%; margin-top: 0.25rem; }
+
+/* answer */
+.q-answer { margin-top: 0.5rem; margin-left: 0.5rem; padding: 0.5rem 0 0.5rem 0.75rem; border-left: 2px solid #000; color: #333; }
+.q-answer video, .q-answer audio { max-width: 100%; margin-top: 0.4rem; }
+.q-answer .katex-display { overflow-x: auto; overflow-y: hidden; }
+
+/* footer */
+footer { margin-top: 2rem; padding-top: 0.75rem; border-top: 1px solid #eee; font-size: 0.7rem; color: #bbb; }
+footer a { color: #999; }
+footer span { margin: 0 0.25rem; }
+
+/* responsive */
+@media (max-width: 480px) {
+  body { padding: 1rem 0.75rem; }
+  header { flex-direction: column; gap: 0.15rem; }
+  header .brand { margin-left: 0; }
+  .rec-preview { width: 100% !important; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Wahrscheinlichkeit, Statistik und Datenanalyse — SS 2026</h1>
+  <span class="brand">ask.sloppy</span>
+</header>
+
+<div id="compose">
+  <textarea id="input" placeholder="Markdown + LaTeX ..."></textarea>
+  <div id="compose-preview"></div>
+  <div id="file-list" class="file-list"></div>
+  <div id="recorder">
+    <div id="rec-top">
+      <span class="rec-dot"></span>
+      <span class="rec-timer" id="rec-timer">0:00</span>
+      <button type="button" class="rec-btn" id="rec-start" title="record">
+        <svg viewBox="0 0 16 16" fill="red" stroke="none"><circle cx="8" cy="8" r="5"/></svg>
+      </button>
+      <button type="button" class="rec-btn" id="rec-pause" title="pause" disabled>
+        <svg viewBox="0 0 16 16" fill="#000" stroke="none"><rect x="3" y="2" width="4" height="12"/><rect x="9" y="2" width="4" height="12"/></svg>
+      </button>
+      <button type="button" class="rec-btn" id="rec-done" title="done" disabled>
+        <svg viewBox="0 0 16 16" fill="none" stroke="#000" stroke-width="2"><polyline points="3,8 7,12 13,4"/></svg>
+      </button>
+      <button type="button" class="rec-btn" id="rec-cancel" title="cancel">
+        <svg viewBox="0 0 16 16" fill="none" stroke="#000" stroke-width="2"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>
+      </button>
+    </div>
+    <canvas id="rec-canvas"></canvas>
+    <video id="rec-preview" class="rec-preview" muted playsinline></video>
+  </div>
+  <div id="compose-bar">
+    <label class="att-btn" title="image">
+      <svg viewBox="0 0 16 16" fill="none" stroke="#000" stroke-width="1.2"><rect x="1.5" y="2.5" width="13" height="11" rx="1"/><circle cx="5.5" cy="6.5" r="1.5"/><path d="M1.5 11l3.5-3.5 2.5 2.5 2.5-3 4 4"/></svg>
+      <input type="file" accept="image/*" hidden id="file-img">
+    </label>
+    <button type="button" class="att-btn" id="btn-audio" title="record audio">
+      <svg viewBox="0 0 16 16" fill="none" stroke="#000" stroke-width="1.2"><rect x="5.5" y="1.5" width="5" height="8" rx="2.5"/><path d="M3 8.5a5 5 0 0010 0"/><line x1="8" y1="13.5" x2="8" y2="15"/></svg>
+    </button>
+    <button type="button" class="att-btn" id="btn-video" title="record video">
+      <svg viewBox="0 0 16 16" fill="none" stroke="#000" stroke-width="1.2"><rect x="1.5" y="3.5" width="9" height="9" rx="1"/><path d="M10.5 6l4-2.5v9L10.5 10"/></svg>
+    </button>
+    <label class="att-btn" title="file">
+      <svg viewBox="0 0 16 16" fill="none" stroke="#000" stroke-width="1.2"><path d="M13.5 7l-5.5 5.5a3 3 0 01-4.24-4.24l6.5-6.5a2 2 0 012.83 2.83l-6.5 6.5a1 1 0 01-1.42-1.42L10.5 4.5"/></svg>
+      <input type="file" hidden id="file-any">
+    </label>
+    <div class="spacer"></div>
+    <button type="button" id="btn-submit">send</button>
+  </div>
+</div>
+
+<div id="sort">
+  <a class="active" data-sort="votes">top</a>
+  <a data-sort="newest">new</a>
+</div>
+
+<div id="questions"></div>
+
+<footer>
+  <a href="#impressum" id="link-impressum">impressum</a><span>·</span>albert@tugraz.at<span>·</span>anonymous<span>·</span>no cookies
+</footer>
+
+<div id="impressum-page" style="display:none">
+  <p><strong>Betreiber</strong></p>
+  <p>Institut für Theoretische und Computational Physics, TU Graz</p>
+  <p style="margin-top:0.75rem"><strong>Kontakt</strong></p>
+  <p>albert@tugraz.at</p>
+  <p style="margin-top:0.75rem"><strong>Datenschutz</strong></p>
+  <p>Fragen sind anonym. Es werden keine personenbezogenen Daten, IP-Adressen oder Cookies gespeichert. Inhalte werden auf unserem Server gespeichert.</p>
+  <p style="margin-top:0.75rem"><strong>Löschung</strong></p>
+  <p>Falls Inhalte gelöscht werden sollen, bitte an albert@tugraz.at schreiben.</p>
+  <p style="margin-top:1rem"><a href="#" id="link-back">&larr; back</a></p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/contrib/auto-render.min.js"></script>
+<script>
+'use strict';
+
+const QUESTIONS = [
+  { id: 1, body: "Kann man die Bayes-Formel auch für kontinuierliche Verteilungen verwenden? Also mit $p(\\theta | x) = \\frac{p(x|\\theta) \\, p(\\theta)}{p(x)}$?",
+    votes: 12, time: Date.now() - 7200000, media: null, answer: null },
+  { id: 2, body: "Was ist der Unterschied zwischen $\\sigma$ und $s$ bei der Standardabweichung?",
+    votes: 8, time: Date.now() - 5400000, media: null,
+    answer: { body: "Kurz: $\\sigma$ ist der Parameter der Grundgesamtheit, $s$ die Schätzung aus der Stichprobe. In der Praxis kennen wir $\\sigma$ fast nie und arbeiten mit $s$.", video: true } },
+  { id: 3, body: "Warum verwenden wir $n-1$ statt $n$ im Nenner der Stichprobenvarianz?",
+    votes: 5, time: Date.now() - 3600000, media: null, answer: null },
+  { id: 4, body: "Ich verstehe das Beispiel mit der Normalverteilung nicht ganz, hier mein Ansatz:",
+    votes: 3, time: Date.now() - 1800000, media: 'image', answer: null },
+  { id: 5, body: "Wird die Poissonverteilung auch in der Prüfung drankommen?",
+    votes: 1, time: Date.now() - 900000, media: null, answer: null }
+];
+
+const votedSet = new Set();
+let sortMode = 'votes';
+
+function relTime(ts) {
+  const m = Math.floor((Date.now() - ts) / 60000);
+  if (m < 1) return 'now';
+  if (m < 60) return m + 'm';
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + 'h';
+  return Math.floor(h / 24) + 'd';
+}
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderMd(text) {
+  let html = esc(text);
+  // fenced code blocks
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
+    '<pre><code' + (lang ? ' class="language-' + lang + '"' : '') + '>' + code.replace(/\n$/, '') + '</code></pre>');
+  // process line-based blocks
+  const lines = html.split('\n');
+  let out = [], inList = false, listType = '';
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+    // skip lines inside <pre> blocks
+    if (line.includes('<pre>')) { out.push(line); while (i < lines.length - 1 && !lines[i].includes('</pre>')) { i++; out.push(lines[i]); } continue; }
+    // headings
+    const hm = line.match(/^(#{1,4})\s+(.+)$/);
+    if (hm) { if (inList) { out.push(listType === 'ul' ? '</ul>' : '</ol>'); inList = false; } out.push('<h' + hm[1].length + '>' + hm[2] + '</h' + hm[1].length + '>'); continue; }
+    // hr
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) { if (inList) { out.push(listType === 'ul' ? '</ul>' : '</ol>'); inList = false; } out.push('<hr>'); continue; }
+    // blockquote
+    if (line.startsWith('&gt; ')) { if (inList) { out.push(listType === 'ul' ? '</ul>' : '</ol>'); inList = false; } out.push('<blockquote>' + line.slice(5) + '</blockquote>'); continue; }
+    // unordered list
+    const ulm = line.match(/^[-*+]\s+(.+)$/);
+    if (ulm) { if (!inList || listType !== 'ul') { if (inList) out.push('</ol>'); out.push('<ul>'); inList = true; listType = 'ul'; } out.push('<li>' + ulm[1] + '</li>'); continue; }
+    // ordered list
+    const olm = line.match(/^\d+\.\s+(.+)$/);
+    if (olm) { if (!inList || listType !== 'ol') { if (inList) out.push('</ul>'); out.push('<ol>'); inList = true; listType = 'ol'; } out.push('<li>' + olm[1] + '</li>'); continue; }
+    // close list if no longer in one
+    if (inList) { out.push(listType === 'ul' ? '</ul>' : '</ol>'); inList = false; }
+    out.push(line);
+  }
+  if (inList) out.push(listType === 'ul' ? '</ul>' : '</ol>');
+  html = out.join('\n');
+  // inline formatting (order matters: bold before italic)
+  html = html
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/~~(.+?)~~/g, '<del>$1</del>')
+    .replace(/`(.+?)`/g, '<code>$1</code>')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    .replace(/(^|[\s(])((https?:\/\/)[^\s<)]+)/gm, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
+  return html;
+}
+
+const ARROW_UP = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10l5-5 5 5"/></svg>';
+
+function renderQuestions() {
+  const sorted = [...QUESTIONS].sort((a, b) =>
+    sortMode === 'votes' ? b.votes - a.votes : b.time - a.time);
+  const c = document.getElementById('questions');
+  c.innerHTML = sorted.map(q => {
+    let media = '';
+    if (q.media === 'image')
+      media = '<div class="q-media"><img src="data:image/svg+xml,' +
+        encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' width='320' height='180'><rect width='320' height='180' fill='#f0f0f0'/><text x='160' y='95' text-anchor='middle' font-family='monospace' font-size='13' fill='#bbb'>image</text></svg>") +
+        '" alt="image"></div>';
+    let ans = '';
+    if (q.answer) {
+      ans = '<div class="q-answer"><div class="q-answer-text">' + renderMd(q.answer.body) + '</div>';
+      if (q.answer.video)
+        ans += '<video controls poster="data:image/svg+xml,' +
+          encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' width='400' height='225'><rect width='400' height='225' fill='#111'/><polygon points='185,95 215,112 185,130' fill='#444'/></svg>") +
+          '" style="width:100%;max-width:400px;aspect-ratio:16/9;background:#111"></video>';
+      ans += '</div>';
+    }
+    const v = votedSet.has(q.id);
+    return '<div class="q"><div class="q-body">' + renderMd(q.body) + '</div>' + media +
+      '<div class="q-meta">' +
+        '<span class="q-vote' + (v ? ' voted' : '') + '" data-id="' + q.id + '">' +
+          ARROW_UP + '<span class="vote-count">' + q.votes + '</span></span>' +
+        '<span>' + relTime(q.time) + '</span>' +
+      '</div>' + ans + '</div>';
+  }).join('');
+  renderMathInElement(c, {
+    delimiters: [{ left: '$$', right: '$$', display: true }, { left: '$', right: '$', display: false }],
+    throwOnError: false
+  });
+}
+
+// voting
+document.getElementById('questions').addEventListener('click', e => {
+  const el = e.target.closest('.q-vote');
+  if (!el) return;
+  const id = parseInt(el.dataset.id);
+  const q = QUESTIONS.find(q => q.id === id);
+  if (votedSet.has(id)) { votedSet.delete(id); q.votes--; }
+  else { votedSet.add(id); q.votes++; }
+  renderQuestions();
+});
+
+// sort
+document.getElementById('sort').addEventListener('click', e => {
+  const a = e.target.closest('a[data-sort]');
+  if (!a) return;
+  sortMode = a.dataset.sort;
+  document.querySelectorAll('#sort a').forEach(x => x.classList.toggle('active', x.dataset.sort === sortMode));
+  renderQuestions();
+});
+
+// compose
+const input = document.getElementById('input');
+const preview = document.getElementById('compose-preview');
+// auto-grow textarea (fallback for browsers without field-sizing: content)
+function autoGrow() {
+  input.style.height = 'auto';
+  input.style.height = Math.max(80, input.scrollHeight) + 'px';
+}
+input.addEventListener('input', autoGrow);
+
+let previewTimeout;
+input.addEventListener('input', () => {
+  clearTimeout(previewTimeout);
+  previewTimeout = setTimeout(() => {
+    const v = input.value.trim();
+    if (!v) { preview.innerHTML = ''; return; }
+    preview.innerHTML = renderMd(v);
+    renderMathInElement(preview, {
+      delimiters: [{ left: '$$', right: '$$', display: true }, { left: '$', right: '$', display: false }],
+      throwOnError: false
+    });
+  }, 300);
+});
+
+function submitQuestion() {
+  const v = input.value.trim();
+  if (!v) return;
+  QUESTIONS.unshift({ id: Date.now(), body: v, votes: 0, time: Date.now(), media: null, answer: null });
+  input.value = '';
+  preview.innerHTML = '';
+  renderQuestions();
+}
+document.getElementById('btn-submit').addEventListener('click', submitQuestion);
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submitQuestion(); }
+});
+
+// file attach
+for (const id of ['file-img', 'file-any']) {
+  document.getElementById(id).addEventListener('change', function() {
+    if (this.files.length)
+      document.getElementById('file-list').innerHTML += '<span>' + esc(this.files[0].name) + '</span>';
+  });
+}
+
+// recorder (audio OR video, mutually exclusive)
+const recorder = document.getElementById('recorder');
+const recCanvas = document.getElementById('rec-canvas');
+const recCtx = recCanvas.getContext('2d');
+const recTimerEl = document.getElementById('rec-timer');
+const recPreview = document.getElementById('rec-preview');
+const recStart = document.getElementById('rec-start');
+const recPause = document.getElementById('rec-pause');
+const recDone = document.getElementById('rec-done');
+const recCancel = document.getElementById('rec-cancel');
+const btnAudio = document.getElementById('btn-audio');
+const btnVideo = document.getElementById('btn-video');
+
+let recStream = null, recMode = null, recRecording = false, recPaused = false;
+let recInterval = null, recSeconds = 0;
+let audioCtx = null, analyser = null, animFrame = null;
+
+function openRecorder(mode) {
+  if (recStream) closeRecorder();
+  recMode = mode;
+  navigator.mediaDevices.getUserMedia(
+    mode === 'video' ? { audio: true, video: true } : { audio: true }
+  ).then(stream => {
+    recStream = stream;
+    recorder.classList.add('active');
+    if (mode === 'video') {
+      recorder.classList.add('video-mode');
+      recPreview.srcObject = stream;
+      recPreview.play();
+    } else {
+      recorder.classList.remove('video-mode');
+    }
+    btnAudio.classList.toggle('active', mode === 'audio');
+    btnVideo.classList.toggle('active', mode === 'video');
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 256;
+    audioCtx.createMediaStreamSource(stream).connect(analyser);
+    drawScope();
+  }).catch(() => alert('No access to ' + (mode === 'video' ? 'camera' : 'microphone')));
+}
+
+function drawScope() {
+  const w = recCanvas.width = recCanvas.offsetWidth * (devicePixelRatio || 1);
+  const h = recCanvas.height = recCanvas.offsetHeight * (devicePixelRatio || 1);
+  recCtx.scale(devicePixelRatio || 1, devicePixelRatio || 1);
+  const dw = recCanvas.offsetWidth, dh = recCanvas.offsetHeight;
+  const buf = new Uint8Array(analyser.frequencyBinCount);
+  (function draw() {
+    animFrame = requestAnimationFrame(draw);
+    analyser.getByteTimeDomainData(buf);
+    recCtx.clearRect(0, 0, dw, dh);
+    recCtx.beginPath();
+    recCtx.strokeStyle = '#999';
+    recCtx.lineWidth = 1;
+    const step = dw / buf.length;
+    for (let i = 0; i < buf.length; i++) {
+      const y = (buf[i] / 255) * dh;
+      i === 0 ? recCtx.moveTo(0, y) : recCtx.lineTo(i * step, y);
+    }
+    recCtx.stroke();
+  })();
+}
+
+function closeRecorder() {
+  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+  if (audioCtx) { audioCtx.close(); audioCtx = null; analyser = null; }
+  if (recStream) { recStream.getTracks().forEach(t => t.stop()); recStream = null; }
+  recPreview.srcObject = null;
+  clearInterval(recInterval);
+  recorder.classList.remove('active', 'recording', 'video-mode');
+  recRecording = false; recPaused = false; recSeconds = 0;
+  recTimerEl.textContent = '0:00';
+  recStart.disabled = false; recPause.disabled = true; recDone.disabled = true;
+  btnAudio.classList.remove('active'); btnVideo.classList.remove('active');
+  recMode = null;
+}
+
+btnAudio.addEventListener('click', () => recMode === 'audio' ? closeRecorder() : openRecorder('audio'));
+btnVideo.addEventListener('click', () => recMode === 'video' ? closeRecorder() : openRecorder('video'));
+
+recStart.addEventListener('click', () => {
+  if (recRecording && !recPaused) return;
+  recRecording = true; recPaused = false;
+  recorder.classList.add('recording');
+  recStart.disabled = true; recPause.disabled = false; recDone.disabled = false;
+  recInterval = setInterval(() => {
+    recSeconds++;
+    recTimerEl.textContent = Math.floor(recSeconds / 60) + ':' + String(recSeconds % 60).padStart(2, '0');
+  }, 1000);
+});
+
+recPause.addEventListener('click', () => {
+  if (!recRecording) return;
+  recPaused = !recPaused;
+  if (recPaused) {
+    clearInterval(recInterval); recorder.classList.remove('recording'); recStart.disabled = false;
+  } else {
+    recorder.classList.add('recording'); recStart.disabled = true;
+    recInterval = setInterval(() => {
+      recSeconds++;
+      recTimerEl.textContent = Math.floor(recSeconds / 60) + ':' + String(recSeconds % 60).padStart(2, '0');
+    }, 1000);
+  }
+});
+
+recDone.addEventListener('click', () => {
+  document.getElementById('file-list').innerHTML += '<span>' + recMode + ' (' + recTimerEl.textContent + ')</span>';
+  closeRecorder();
+});
+recCancel.addEventListener('click', closeRecorder);
+
+// impressum
+document.getElementById('link-impressum').addEventListener('click', e => {
+  e.preventDefault();
+  for (const el of [document.getElementById('questions'), document.getElementById('compose'),
+    document.getElementById('sort'), document.querySelector('footer')]) el.style.display = 'none';
+  document.getElementById('impressum-page').style.display = 'block';
+});
+document.getElementById('link-back').addEventListener('click', e => {
+  e.preventDefault();
+  for (const el of [document.getElementById('questions'), document.getElementById('compose'),
+    document.getElementById('sort'), document.querySelector('footer')]) el.style.display = '';
+  document.getElementById('impressum-page').style.display = 'none';
+});
+
+renderQuestions();
+</script>
+</body>
+</html>

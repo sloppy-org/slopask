@@ -761,7 +761,8 @@ func (s *Server) handleAPIListQuestions(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	filter := r.URL.Query().Get("filter")
-	questions, err := s.store.ListQuestionsFiltered(room.ID, filter)
+	sort := r.URL.Query().Get("sort")
+	questions, err := s.store.ListQuestionsFiltered(room.ID, filter, sort)
 	if err != nil {
 		serverError(w, err)
 		return

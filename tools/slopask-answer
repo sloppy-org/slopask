@@ -191,6 +191,9 @@ Rules:
 - Real substance and depth in the answer.
 - Prefer TikZ illustrations over text wherever possible.
 - Do NOT use \\begin{{frame}}[fragile] unless needed for lstlisting.
+- ALL writing must sound natural and human, not like a generic LLM.
+- Avoid stock AI phrasing and inflated transitions such as: "genau das", "das ist genau der Grund", "dabei geht es", "nicht nur X, sondern auch Y", "spannend ist", "schön ist auch", "letztlich", "im Kern", "it is important to note", "delve", "crucial", "tapestry", "landscape".
+- Prefer short, direct statements over meta commentary, rhetorical framing, or padded summaries.
 
 Output ONLY valid JSON, no markdown fences."""
 

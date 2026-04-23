@@ -760,7 +760,7 @@ func TestListQuestionsFiltered_Unanswered(t *testing.T) {
 
 	s.CreateAnswer(q2.ID, "Answer to q2")
 
-	questions, err := s.ListQuestionsFiltered(room.ID, "unanswered")
+	questions, err := s.ListQuestionsFiltered(room.ID, "unanswered", "")
 	if err != nil {
 		t.Fatalf("ListQuestionsFiltered: %v", err)
 	}
@@ -781,12 +781,32 @@ func TestListQuestionsFiltered_All(t *testing.T) {
 	q2, _ := s.CreateQuestion(room.ID, "Q2", "v2")
 	s.CreateAnswer(q2.ID, "Answer")
 
-	questions, err := s.ListQuestionsFiltered(room.ID, "")
+	questions, err := s.ListQuestionsFiltered(room.ID, "", "")
 	if err != nil {
 		t.Fatalf("ListQuestionsFiltered all: %v", err)
 	}
 	if len(questions) != 2 {
 		t.Fatalf("len = %d, want 2", len(questions))
+	}
+}
+
+func TestListQuestionsFiltered_Newest(t *testing.T) {
+	t.Parallel()
+	s := openMemory(t)
+
+	room, _ := s.CreateRoom("Filter Newest Room")
+	s.CreateQuestion(room.ID, "Q1", "v1")
+	q2, _ := s.CreateQuestion(room.ID, "Q2", "v2")
+
+	questions, err := s.ListQuestionsFiltered(room.ID, "", "newest")
+	if err != nil {
+		t.Fatalf("ListQuestionsFiltered newest: %v", err)
+	}
+	if len(questions) != 2 {
+		t.Fatalf("len = %d, want 2", len(questions))
+	}
+	if questions[0].ID != q2.ID {
+		t.Errorf("first question ID = %d, want %d (newest)", questions[0].ID, q2.ID)
 	}
 }
 
